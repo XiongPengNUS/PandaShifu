@@ -46,14 +46,14 @@ def filter_code(output_name, input_name, flist, reset_index):
         if f['column'] is None:
             continue
         if len(f['values']) == 1:
-            conds.append(f'cond{i+1} = {input_name}[{f['column'].__repr__()}] == {f['values'][0].__repr__()}')
+            conds.append(f"cond{i+1} = {input_name}[{f['column'].__repr__()}] == {f['values'][0].__repr__()}")
         elif len(f['values']) > 1:
-            conds.append(f'cond{i+1} = {input_name}[{f['column'].__repr__()}].isin({f['values']})')
+            conds.append(f"cond{i+1} = {input_name}[{f['column'].__repr__()}].isin({f['values']})")
             # conds = cond & (filter_on.isin(f['values']))
         if f['range'] is not None:
             fmin, fmax = f['range']
-            filter_on = f'{input_name}[{f['column'].__repr__()}]'
-            conds.append(f'cond{i+1} = ({filter_on} >= {fmin}) & ({filter_on} <= {fmax})')
+            filter_on = f"{input_name}[{f['column'].__repr__()}]"
+            conds.append(f"cond{i+1} = ({filter_on} >= {fmin}) & ({filter_on} <= {fmax})")
 
     if len(conds) == 0:
         code = f'{left}{input_name}\n'
@@ -381,32 +381,32 @@ def lineplot_code(input_name, llist,
             lin['y'] = tuple(lin['y'])
             data_label = '_'.join(pd.Series(lin['y']).astype(str))
         else:
-            data_label = f'{lin['y']}'
+            data_label = f"{lin['y']}"
         if lin['trans'] == 'change':
-            tcode = f'.diff({lin['period']})'
-            data_label = f'{lin['period']}-period change of {data_label}'
+            tcode = f".diff({lin['period']})"
+            data_label = f"{lin['period']}-period change of {data_label}"
         elif lin['trans'] == 'fractional change':
-            tcode = f'.pct_change({lin['period']})'
-            data_label = f'{lin['period']}-period fractional change of {data_label}'
+            tcode = f".pct_change({lin['period']})"
+            data_label = f"{lin['period']}-period fractional change of {data_label}"
         elif lin['trans'] == 'moving average':
-            tcode = f'.rolling({lin['period']}).mean()'
-            data_label = f'{lin['period']}-period moving average of {data_label}'
+            tcode = f".rolling({lin['period']}).mean()"
+            data_label = f"{lin['period']}-period moving average of {data_label}"
         else:
             tcode = ''
-        ycode = f'{input_name}[{lin['y'].__repr__()}]{tcode}'
+        ycode = f"{input_name}[{lin['y'].__repr__()}]{tcode}"
         if not lin['x']:
             xcode = ''
         else:
             if isinstance(lin['x'], Iterable) and not isinstance(lin['y'], str):
                 lin['x'] = tuple(lin['x'])
-            xcode = f'{input_name}[{lin['x'].__repr__()}], '
+            xcode = f"{input_name}[{lin['x'].__repr__()}], "
 
         styles = {'solid': '-',
                   'dash': '--',
                   'dot': '.',
                   'dashdot': '-.'}
-        lscode = f'linestyle={styles[lin['linestyle']].__repr__()}'
-        lwcode = f'linewidth={lin['linewidth']}'
+        lscode = f"linestyle={styles[lin['linestyle']].__repr__()}"
+        lwcode = f"linewidth={lin['linewidth']}"
         
         if lin['marker'] == 'none' or lin['marker'] is None:
             mcode = ''
@@ -416,14 +416,14 @@ def lineplot_code(input_name, llist,
                        'square': 's',
                        'diamond': 'd',
                        'triangle': '^'}
-            mcode = f' marker={symbols[lin['marker']].__repr__()},'
+            mcode = f" marker={symbols[lin['marker']].__repr__()},"
         if lin['scale'] == 0 or mcode == '':
             scode = ''
         else:
-            scode = f' markersize={6*5**(lin['scale']/2):.2f},'
+            scode = f" markersize={6*5**(lin['scale']/2):.2f},"
         
-        cocode = f'color={lin['color'].__repr__()}'
-        lacode = f'label={data_label.__repr__()}'
+        cocode = f"color={lin['color'].__repr__()}"
+        lacode = f"label={data_label.__repr__()}"
 
         code += f'plt.plot({xcode}{ycode}, {cocode},{mcode}{scode}\n'
         code += f'         {lscode}, {lwcode}, {lacode})\n'
@@ -523,10 +523,10 @@ def pred_reg_model_code(steps, params):
     else:
         params_code = f'params = {{\n{params_string}\n}}\n'
     
-    code = (f'{'\n'.join(import_code)}\n\n'
-            f'{params_code}'
-            f'steps = [\n{',\n'.join(step_code)}\n]\n'
-            'pipe = Pipeline(steps)\n')
+    code = "{}\n\n".format('\n'.join(import_code))
+    code += f"{params_code}"
+    code += "steps = [\n{}\n]\n".format(',\n'.join(step_code))
+    code += 'pipe = Pipeline(steps)\n'
     
     return f'```python\n{code}```'
 
@@ -568,20 +568,20 @@ def pred_fit_code(params, num_folds, test_switch, ratio, pred_type='R'):
         model_code = 'model = search.best_estimator_\n'
         params_code = ('print(\'Best parameters:\')\n'
                        'for p in params:\n'
-                       '    print(f\'- {p[p.index(\'__\')+2:]}: {search.best_params_[p]}\')\n')
+                       '    print(f\"- {p[p.index(\'__\')+2:]}: {search.best_params_[p]}\")\n')
     
-    code = (f'{'\n'.join(import_code)}\n\n'
-            f'{xy_code}'
-            f'cv = KFold(n_splits={num_folds}, shuffle=True, random_state=0)\n'
-            f'{cv_code}'
-            f'{model_code}\n'
-            f'{params_code}'
-            'print(f\'Cross-validation score: {scores.mean().round(4)}\')\n'
-            f'{test_code}'
-            f'{print_test_code}'
-            f'\nindex=[f\'fold{{i}}\' for i in range({num_folds})]\n'
-            'table = pd.DataFrame({\'R-squared\': scores.round(4)}, index=index).T\n'
-            'print(f\'\\n{table}\')\n')
+    code = '{}\n\n'.format('\n'.join(import_code))
+    code += f'{xy_code}'
+    code += f'cv = KFold(n_splits={num_folds}, shuffle=True, random_state=0)\n'
+    code += f'{cv_code}'
+    code += f'{model_code}\n'
+    code += f'{params_code}'
+    code += 'print(f\'Cross-validation score: {scores.mean().round(4)}\')\n'
+    code += f'{test_code}'
+    code += f'{print_test_code}'
+    code += f'\nindex=[f\'fold{{i}}\' for i in range({num_folds})]\n'
+    code += 'table = pd.DataFrame({\'R-squared\': scores.round(4)}, index=index).T\n'
+    code += 'print(f\'\\n{table}\')\n'
     
     return f'```python\n{code}```'
 
@@ -646,11 +646,11 @@ def pred_reg_analysis_code(ptype, test_switch):
     else:
         resid_code = ''
 
-    code = (f'{'\n'.join(import_code)}\n\n'
-            'yhat_cv = cross_val_predict(model, x_train, y_train, cv=cv)\n'
-            f'{ytest_code}'
-            f'{pred_code}'
-            f'{resid_code}')
+    code = '{}\n\n'.format('\n'.join(import_code))
+    code += 'yhat_cv = cross_val_predict(model, x_train, y_train, cv=cv)\n'
+    code += f'{ytest_code}'
+    code += f'{pred_code}'
+    code += f'{resid_code}'
     
     return f'```python\n{code}```'
 
@@ -700,17 +700,17 @@ def pred_cls_analysis_code(classes_values, cat, test_switch, threshold):
         test_curve = ''
         test_cmat = ''
     
-    code = (f'{'\n'.join(import_code)}\n\n'
-            f'{cv_code}'
-            f'{test_code}'
-            f'threshold = {threshold}\n'
-            'print(f\'threshold: {threshold}\')\n'
-            f'{cv_cmat}'
-            f'{test_cmat}'
-            'plt.figure(figsize=(4.5, 4.5))\n'
-            f'{cv_curve}'
-            f'{test_curve}'
-            'plt.legend(loc=\'lower right\')\n'
+    code = '{}\n\n'.format('\n'.join(import_code))
+    code += f'{cv_code}'
+    code += f'{test_code}'
+    code += f'threshold = {threshold}\n'
+    code += 'print(f\'threshold: {threshold}\')\n'
+    code += f'{cv_cmat}'
+    code += f'{test_cmat}'
+    code += 'plt.figure(figsize=(4.5, 4.5))\n'
+    code += f'{cv_curve}'
+    code += f'{test_curve}'
+    code += ('plt.legend(loc=\'lower right\')\n'
             'plt.xlabel(\'False positive rate\')\n'
             'plt.ylabel(\'True positive rate\')\n'
             'plt.grid()\n'

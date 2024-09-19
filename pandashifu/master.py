@@ -1617,7 +1617,7 @@ def bar_visual(current, nodes, id):
         if xdata is None:
             xvalues = input_data.index
             if isinstance(xvalues, pd.MultiIndex):
-                xvalues = pd.Series([f'({','.join(np.array(i).astype(str))})'
+                xvalues = pd.Series([f"({','.join(np.array(i).astype(str))})"
                                      for i in xvalues], name=xvalues.name)
         else:
             xvalues = input_data[column_labels[xdata]]
@@ -1646,7 +1646,7 @@ def bar_visual(current, nodes, id):
         for col, color in zip(columns, colors):
             name = col
             if isinstance(col, Iterable) and not isinstance(col, str):
-                name = f'({', '.join(col)})'
+                name = f"({', '.join(col)})"
                 col = tuple(col)
             yvalues = input_data[col]
             if len(horizontal) > 0:
@@ -2195,17 +2195,17 @@ def lineplot_visual(current, nodes, id):
                 lin['y'] = tuple(lin['y'])
                 data_label = '_'.join(pd.Series(lin['y']).astype(str))
             else:
-                data_label = f'{lin['y']}'
+                data_label = f"{lin['y']}"
             ycol = input_data[lin['y']]
             if lin['trans'] == 'change':
                 ycol = ycol.diff(lin['period'])
-                data_label = f'{lin['period']}-period change of {data_label}'
+                data_label = f"{lin['period']}-period change of {data_label}"
             elif lin['trans'] == 'fractional change':
                 ycol = ycol.pct_change(lin['period'])
-                data_label = f'{lin['period']}-period fractional change of {data_label}'
+                data_label = f"{lin['period']}-period fractional change of {data_label}"
             elif lin['trans'] == 'moving average':
                 ycol = ycol.rolling(lin['period']).mean()
-                data_label = f'{lin['period']}-period moving average of {data_label}'
+                data_label = f"{lin['period']}-period moving average of {data_label}"
             if not lin['x'] or lin['x'] == '':
                 xcol = input_data.index
             else:
@@ -2544,7 +2544,7 @@ def model_variables(current, nodes, steps, id, mtype='P'):
 
 def exp_model_fit(current, nodes, id, predicted='', predictors=[]):
 
-    formula_value = f'{predicted} ~ {' + '.join(predictors)}'
+    formula_value = f"{predicted} ~ {' + '.join(predictors)}"
     formula = sidebar_expr('Formula', id=f'{id}_formula', value=formula_value)
     fit = dbc.Row([std_button('Fit model', id=f'{id}_fit', width=120)], justify='end',
                   style={'margin-left': 3, 'margin-right': 3, 'margin-top': 0, 'margin-bottom': 5})
@@ -3033,7 +3033,7 @@ def pred_model_fit(current, nodes, steps, id):
                     scores = np.array([search.cv_results_[f'split{i}_test_score'][best_index]
                                        for i in range(num_folds)])
                     best_params = search.best_params_
-                    param_string = '\n'.join([f'- {p[p.index('__')+2:]}: {best_params[p]}'
+                    param_string = '\n'.join([f"- {p[p.index('__')+2:]}: {best_params[p]}"
                                               for p in params])
                     summary = ('Best parameters:\n'
                                f'{param_string}\n\n'
