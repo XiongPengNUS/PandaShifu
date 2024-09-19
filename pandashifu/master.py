@@ -315,7 +315,11 @@ def filter_rows(current, nodes, id):
             if (filter_on.astype(int) == filter_on).all():
                 step = 1
             else:
-                step = 10 ** np.floor(np.log10((fmax - fmin)/1000))
+                #step = 10 ** np.floor(np.log10((fmax - fmin)/1000))
+                step = np.minimum(1, 10 ** np.floor(np.log10((fmax - fmin)/1000)))
+                multiplier = 10 ** np.log10(step)
+                fmin = np.floor(fmin/multiplier) * multiplier
+                fmax = np.ceil(fmax/multiplier) * multiplier
             return fmin, fmax, step, fmin, fmin, fmax, step, fmax
 
     @callback(Output(f'{id}_expr', 'value'),
@@ -3573,7 +3577,7 @@ def home(data):
     model_page = [html.Div(model_start_page + pred_pages + exp_pages, id='model_page', style=hide)]
 
     about_string = ('### Introduction\n'
-                    '**```Panda Shifu```** is an open-source Python package that provides friendly user interfaces for descriptive ' 
+                    '**```PandaShifu```** is an open-source Python package that provides friendly user interfaces for descriptive ' 
                     'and predictive analytics on a given dataset. '
                     'Specifically, the package is capable of processing and visualizing the given dataset, '
                     'and building pipelines for econometrical and machine learning models. '
@@ -3582,9 +3586,9 @@ def home(data):
                     '- [**BMK5202 Python Programming for Business Analytics**](https://nusmods.com/courses/BMK5202/python-programming-for-business-analytics)\n'
                     '- [**BMH5104 Artificial Intelligence for HR**](https://nusmods.com/courses/BMH5104/artificial-intelligence-for-hr)\n\n'
                     '### Installation and Source\n'
-                    'The **```Panda Shifu```** package can be installed from the [PyPI](https://pypi.org/) platform via the command:\n'
-                    '```\npip install panda_shifu\n```\n'
-                    'The source code of the package is hosted at [GitHub](https://github.com/XiongPengNUS)\n\n'
+                    'The **```PandaShifu```** package can be installed from the [PyPI](https://pypi.org/project/pandashifu/) platform via the command:\n'
+                    '```\npip install pandashifu\n```\n'
+                    'The source code of the package is hosted at [GitHub](https://github.com/XiongPengNUS/PandaShifu)\n\n'
                     '### Author\n'
                     'The **```Panda Shifu```** package is developed and maintained by Dr. Xiong Peng, who is currently a senior lectuerer at the NUS Business School.\n')
     about_page = [html.Div(dcc.Markdown(about_string, style={'margin-left': 120, 'margin-right': 120, 'margin-top': 50}),
