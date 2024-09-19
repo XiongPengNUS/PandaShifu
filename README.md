@@ -1,1 +1,1 @@
-:)
+Panda-Shifu is a graphical user interface for descriptive and predictive analytics.
