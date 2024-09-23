@@ -145,9 +145,13 @@ def add_colum_code(output_name, input_name, column_labels,
                    new_column, etype, from_column,
                    exprs, dtype, time_format, drop_first):
     
-    if  new_column is None or etype is None or from_column is None:
+    if  not new_column or etype is None:
         return f'```python\n{input_name}\n```'
-    
+    non_cond1 =  etype == 'arithmetic operations' and not exprs
+    non_cond2 =  etype != 'arithmetic operations' and from_column is None
+    if non_cond1 or non_cond2:
+        return f'```python\n{input_name}\n```'
+
     if etype in ['to datetime', 'to dummies']:
         code = 'import pandas as pd\n\n'
     else:
@@ -160,7 +164,10 @@ def add_colum_code(output_name, input_name, column_labels,
         code += f'{output_name} = {input_name}.copy()\n'
     
     left = f'{output_name}[{new_column.__repr__()}]'
-    cols = f'{input_name}[{column_labels[from_column].__repr__()}]'
+    if from_column:
+        cols = f'{input_name}[{column_labels[from_column].__repr__()}]'
+    else:
+        cols = ''
     if etype == 'type conversion':
         right = f'{cols}.astype({dtype})'
         code +=  f'{left} = {right}\n'

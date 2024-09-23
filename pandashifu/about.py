@@ -1,3 +1,4 @@
+string = '''
 # Panda Shifu [![GitHub Repo stars](https://img.shields.io/github/stars/XiongPengNUS/PandaShifu)](https://github.com/XiongPengNUS/PandaShifu/stargazers)
 
 ---
@@ -36,3 +37,4 @@ The current version of **```PandaShifu```** is compatible with Python 3.9 or abo
 
 ### Author
 The **```Panda Shifu```** package is developed and maintained by [Dr. Peng Xiong](https://discovery.nus.edu.sg/11338-peng-xiong), who is currently a senior lecturer at the NUS Business School.
+'''

@@ -35,6 +35,7 @@ from .styles import sidebar_style, content_style
 from .styles import selected_color, unselected_color
 from .plan import blueprint, PSNode
 from .jade import export
+from .about import string as about_string
 
 from .ingredients import *
 from .scroll import *
@@ -1089,7 +1090,7 @@ def add_column(current, nodes, id):
                 except Exception as err:
                     error_string = f'\n\n**`Error`**`: {err}`'
         elif etype == 'arithmetic operations':
-            if from_column is not None and new_column is not None and exprs is not None:
+            if new_column is not None and exprs is not None:
                 try:
                     formula = exprs.replace(f'{input_name}', 'input_data')
                     output_data[new_column] = eval(formula)
@@ -2869,6 +2870,9 @@ def pred_regression_model(nodes, steps, pred_type, id):
             steps['scaling'] = StandardScaler()
         elif scaling == 'Normalizer':
             steps['scaling'] = Normalizer()
+        else:
+            if 'scaling' in steps:
+                steps.pop('scaling')
         if nc is not None:
             steps['pca'] = PCA()
             if nc is not None:
@@ -3576,21 +3580,7 @@ def home(data):
     exp_pages = exp_pipeline(current, nodes)
     model_page = [html.Div(model_start_page + pred_pages + exp_pages, id='model_page', style=hide)]
 
-    about_string = ('### Introduction\n'
-                    '**```PandaShifu```** is an open-source Python package that provides friendly user interfaces for descriptive ' 
-                    'and predictive analytics on a given dataset. '
-                    'Specifically, the package is capable of processing and visualizing the given dataset, '
-                    'and building pipelines for econometrical and machine learning models. '
-                    'The software is developed to facilitate the teaching of the following courses offered by NUS Business School:\n'
-                    '- [**DAO2702/DAO2702X Programming for Business Analytics**](https://nusmods.com/courses/DAO2702/programming-for-business-analytics)\n'
-                    '- [**BMK5202 Python Programming for Business Analytics**](https://nusmods.com/courses/BMK5202/python-programming-for-business-analytics)\n'
-                    '- [**BMH5104 Artificial Intelligence for HR**](https://nusmods.com/courses/BMH5104/artificial-intelligence-for-hr)\n\n'
-                    '### Installation and Source\n'
-                    'The **```PandaShifu```** package can be installed from the [PyPI](https://pypi.org/project/pandashifu/) platform via the command:\n'
-                    '```\npip install pandashifu\n```\n'
-                    'The source code of the package is hosted at [GitHub](https://github.com/XiongPengNUS/PandaShifu)\n\n'
-                    '### Author\n'
-                    'The **```Panda Shifu```** package is developed and maintained by Dr. Xiong Peng, who is currently a senior lectuerer at the NUS Business School.\n')
+    
     about_page = [html.Div(dcc.Markdown(about_string, style={'margin-left': 120, 'margin-right': 120, 'margin-top': 50}),
                            id='about_page', style=hide)]
 
