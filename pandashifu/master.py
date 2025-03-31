@@ -122,7 +122,7 @@ def new_node(figure, tabs, nodes, n_clicks, content, code, current, ntype='data'
         figure['data'][1]['marker']['size'] = marker_size
         figure['data'][1]['marker']['symbol'] = marker_symbol
         figure['data'][1]['customdata'] = [n.content_label() for n in nodes]
-    
+
     return figure, tabs, selected
 
 
