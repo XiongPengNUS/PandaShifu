@@ -20,7 +20,7 @@ pip install pandashifu
 
 The current version of **```PandaShifu```** is compatible with Python 3.9 or above, and the minimum dependencies are:
 
-- [dash](https://dash.plotly.com/) >= 2.17.1
+- [dash](https://dash.plotly.com/) >= 2.17.1,<=2.18.2
 - [dash-bootstrap-components](https://dash-bootstrap-components.opensource.faculty.ai/) >= 1.6.0
 - [dash-dangerously-set-inner-html](https://github.com/plotly/dash-dangerously-set-inner-html) >= 0.0.2
 - [matplotlib](https://matplotlib.org/) >= 3.8.4
