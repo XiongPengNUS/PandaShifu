@@ -69,7 +69,7 @@ def data_frame(data, entire=True, extra_style=[]):
 
     if entire:
         return [dcc.Markdown('**Output data frame**:'),
-                dcc.Markdown(info, mathjax=True),
+                dcc.Markdown(info, mathjax=False),
                 view]
     else:
         return [view]
@@ -2422,7 +2422,7 @@ def model_variables(current, nodes, steps, id, mtype='P'):
     previews = html.Div([dcc.Markdown('#### Preview'), sep,
                          code, error, sep,
                          dcc.Markdown(f'dataset: ```{input_name}```'),
-                         dcc.Markdown(f'{row} rows $\\times$ {col} columns\n', mathjax=True),
+                         dcc.Markdown(f'{row} rows $\\times$ {col} columns\n', mathjax=False),
                          table, 
                          dash_dangerously_set_inner_html.DangerouslySetInnerHTML(notes)])
     
@@ -3591,7 +3591,16 @@ def home(data):
     store = [dcc.Store(id='current', data=current),
              dcc.Store(id='clear_model', data=False)]
 
-    app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+    #app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+    app = app = Dash(__name__,
+                     external_scripts=[{"src": "/assets/ag-grid.min.js"},
+                                       {"src": "assets/ag-grid-community.min.js"}],  # Local ag-Grid JS
+                     external_stylesheets=[{"href": "/assets/ag-grid.min.css"},
+                                           {"src": "/assets/plotly-latest.min.js?v=1"},
+                                           "/assets/bootstrap.min.css"]               # Local ag-Grid CSS
+)
+    app.config.suppress_callback_exceptions = True
+    
     app.layout = html.Div(store + title + home_page + debug,
                           style=theme_style)
 
