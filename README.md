@@ -18,21 +18,5 @@ The **```PandaShifu```** package can be installed from the [PyPI](https://pypi.o
 pip install pandashifu
 ```
 
-The current version of **```PandaShifu```** is compatible with Python 3.9 or above, and the minimum dependencies are:
-
-- [dash](https://dash.plotly.com/) >= 2.17.1,<=2.18.2
-- [dash-bootstrap-components](https://dash-bootstrap-components.opensource.faculty.ai/) >= 1.6.0
-- [dash-dangerously-set-inner-html](https://github.com/plotly/dash-dangerously-set-inner-html) >= 0.0.2
-- [matplotlib](https://matplotlib.org/) >= 3.8.4
-- [notebook](https://jupyter.org/) >= 7.2.1
-- [numpy](https://numpy.org/) >= 1.26.4
-- [pandas](https://pandas.pydata.org/) >= 2.2.2
-- [plotly](https://plotly.com/) >= 5.23.0
-- [pygwalker](https://kanaries.net/pygwalker) >= 0.4.9
-- [pyperclip](https://pyperclip.readthedocs.io/en/latest/) >= 1.9.0
-- [scikit-learn](https://scikit-learn.org/stable/) >= 1.4.2
-- [seaborn](https://seaborn.pydata.org/) >= 0.13.2
-- [statsmodels](https://www.statsmodels.org/stable/index.html) >= 0.14.2
-
 ### Author
 The **```Panda Shifu```** package is developed and maintained by [Dr. Peng Xiong](https://discovery.nus.edu.sg/11338-peng-xiong), who is currently a senior lecturer at the NUS Business School.
