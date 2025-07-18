@@ -190,8 +190,8 @@ var_names = reactive.value([])
 with ui.navset_hidden(id="main"):
     with ui.nav_panel(None, value="canvas_panel"):
         ui.HTML('<br>')
-        with ui.layout_sidebar(height='920px'):
-            with ui.sidebar(width='350px', open="always", bg='#f8f8f8', height="920px"):
+        with ui.layout_sidebar(height='1020px'):
+            with ui.sidebar(width='350px', open="always", bg='#f8f8f8', height="1020px"):
 
                 with ui.navset_tab(id="main_toolset_navs"):
                     button_gap = "25px"
@@ -326,7 +326,7 @@ with ui.navset_hidden(id="main"):
                                 buf.seek(0)
                                 yield buf.getvalue()
                         
-            with ui.card(height='680px'):
+            with ui.card(height='780px'):
                 @render.express
                 def canvas_plot_func():
 
@@ -423,7 +423,7 @@ with ui.navset_hidden(id="main"):
         @render.express
         def float_node_view():
             view = node_view.get()
-            pos = dict(right="14%", bottom="8%")
+            pos = dict(left="35%", bottom="5%")
             if view is not None:
                 if "string" in view:
                     with ui.panel_absolute(draggable=True, width="590px", **pos):
@@ -503,8 +503,8 @@ with ui.navset_hidden(id="main"):
 
     with ui.nav_panel(None, value="ops_panel"):
         ui.HTML('<br>')
-        with ui.layout_sidebar(height='920px'):
-            with ui.sidebar(bg='#f8f8f8', width='350px', height='920px'):
+        with ui.layout_sidebar(height='1020px'):
+            with ui.sidebar(bg='#f8f8f8', width='350px', height='1020px'):
                 
                 @render.express
                 def ops_panel_ui():
@@ -859,8 +859,8 @@ with ui.navset_hidden(id="main"):
 
     with ui.nav_panel(None, value="dvs_panel"):
         color = reactive.value('#1f77b4')
-        with ui.layout_sidebar(height="920px"):
-            with ui.sidebar(bg='#f8f8f8', width='350px', height='920px'):
+        with ui.layout_sidebar(height="1020px"):
+            with ui.sidebar(bg='#f8f8f8', width='350px', height='1020px'):
             
                 @render.express
                 def dvs_panel_ui():
@@ -1543,8 +1543,8 @@ with ui.navset_hidden(id="main"):
                 init_color.set(default_colors[0])
 
     with ui.nav_panel(None, value="mds_panel"):
-        with ui.layout_sidebar(height="920px"):
-            with ui.sidebar(bg='#f8f8f8', width='350px', height='920px'):
+        with ui.layout_sidebar(height="1020px"):
+            with ui.sidebar(bg='#f8f8f8', width='350px', height='1020px'):
                 
                 @render.express
                 def mds_panel_ui():
@@ -1606,6 +1606,8 @@ with ui.navset_hidden(id="main"):
                             @render.express
                             def sklearn_model_hypers_ui():
                                 model_name = input.sklearn_model_selectize()
+                                if model_name == "":
+                                    return
                                 hyper_list = model_hypers[model_name]
                                 
                                 if len(hyper_list) == 1:
