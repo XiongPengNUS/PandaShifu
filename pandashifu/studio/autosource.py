@@ -356,7 +356,8 @@ def operation_source(op, name, data, ui_input, memory):
                 f"{copy_name}"
             )
             imports.extend(["from sklearn.preprocessing import StandardScaler",
-                            "from sklearn import cluster"])
+                            "from sklearn import cluster",
+                            "import pandas as pd"])
     
     elif op == "Add columns":
         exp_type = ui_input.add_cols_type_selectize()
@@ -382,6 +383,7 @@ def operation_source(op, name, data, ui_input, memory):
             elif exp_type == "To date time":
                 format_code = "" if formula == "None" or formula == "" else f", format={formula.__repr__()}"
                 expr = f"pd.to_datetime({copy_name}[{from_columns}]{format_code})"
+                imports.append("import pandas as pd")
             elif exp_type == "To dummies":
                 drop_code = ", drop_first=True" if ui_input.add_cols_drop_switch() else ""
                 cat_code = '{cat}'
@@ -392,6 +394,7 @@ def operation_source(op, name, data, ui_input, memory):
                 )
                 expr = "dummies"
                 to_columns_repr = "columns"
+                imports.append("import pandas as pd")
             elif exp_type == "To segments":
                 bins = str_to_values(formula)
                 if isinstance(bins, Iterable):
@@ -405,6 +408,7 @@ def operation_source(op, name, data, ui_input, memory):
                 else:
                     labels_code = ""
                 expr = f"pd.cut({copy_name}[{from_columns}], bins={bins.__repr__()}{labels_code}).astype(str)"
+                imports.append("import pandas as pd")
             
             transform_code = f"\n{prep_code}{copy_name}[{to_columns_repr}] = {expr}"
 
@@ -805,26 +809,32 @@ def visual_source(dv, name, data, ui_input, color, memory):
 
 
 def operation_exec_source(data, name, source):
-
     try:
         error = source["error"]
         if error is not None:
             raise RuntimeError(error)
         
         imports = source["imports"]
-        if len(imports) > 0:
-            exec("\n".join(imports))
-        
         code = source['code']
         name_out = source["name_out"]
-        exec(f"{name} = data")
+
+        # Build exec namespace
+        ns = {}
+        ns[name] = data
+        ns['data'] = data
+
+        # Run imports in ns
+        if imports:
+            exec("\n".join(imports), ns)
+        
+        # Operation code execution
         if name_out == "":
             lines = code.split("\n")
-            exec("\n".join(lines[:-1]))
-            return eval(lines[-1])
+            exec("\n".join(lines[:-1]), ns)
+            return eval(lines[-1], ns)
         else:
-            exec(code)
-            return eval(name_out)
+            exec(code, ns)
+            return eval(name_out, ns)
     except Exception as err:
         return str(err)
 
@@ -834,16 +844,19 @@ def visual_exec_source(data, name, dvs_dict):
     plt.close('all')
     try:
         imports = dvs_dict["source"]["imports"]
-        exec("\n".join(imports))
-        exec(f"{name} = data")
-        
         code = dvs_dict["source"]["code"]
+
+        ns = {}
+        ns[name] = data
+        ns['data'] = data
+
+        if imports:
+            exec("\n".join(imports), ns)        
         code_lines = code.split("\n")
-        exec("\n".join(code_lines[:-1]))
-        return eval("fig")
+        exec("\n".join(code_lines[:-1]), ns)
+        return eval("fig", ns)
     except Exception as err:
         return str(err)
-
 
 def statsmodels_source(mds_dict, name, ui_input):
 
@@ -948,7 +961,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     if model in ["Lasso", "LogisticRegression"]:
         args.append("max_iter=1000000")
     elif model in ["DecisionTreeRegressor", "DecisionTreeClassifier",
-                 "RandomForestRegressor", "RandomForestClassifier"]:
+                   "RandomForestRegressor", "RandomForestClassifier"]:
         args.append("random_state=0")
 
     if len(cat_predictors) > 0:
@@ -976,7 +989,8 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         )
 
     imports_step3 = ["from sklearn.model_selection import KFold",
-                     "from sklearn.model_selection import cross_val_predict"]
+                     "from sklearn.model_selection import cross_val_predict",
+                     "import pandas as pd", "import numpy as np"]
     if mds_dict["type"] == "Classifier":
         scoring_code = ", scoring='roc_auc_ovr'"
         score_name = "AUC"
@@ -1086,7 +1100,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
 
 def statsmodels_outputs_source(ui_input):
 
-    imports = []
+    imports = ["import pandas as pd"]
     name_out = ui_input.statsmodels_output_text().strip()
 
     code = (

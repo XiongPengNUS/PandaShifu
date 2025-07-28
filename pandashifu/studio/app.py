@@ -32,8 +32,8 @@ from .canvas import *
 from .styles import *
 
 
-current_file = Path(__file__)
-current_directory = current_file.parent
+#current_file = Path(__file__)
+#current_directory = current_file.parent
 
 def hr(margin=0.75, offset=0):
 
@@ -60,8 +60,9 @@ def tool_icon_code(id, figsize):
     return (
         "@render.plot()\n"
         f"def {id}_button_icon():\n"
+        "    current_directory = Path(__file__).parent\n"
         f"    fig = plt.figure(figsize={figsize}, facecolor='none')\n"
-        f"    img = np.asarray(Image.open(f'{current_directory}/images/{id}.png'))\n"
+        f"    img = np.asarray(Image.open(current_directory / 'images/{id}.png'))\n"
         "    plt.imshow(img)\n"
         "    plt.axis('off')\n"
         "    plt.tight_layout(pad=0)\n"
@@ -201,44 +202,45 @@ with ui.navset_hidden(id="main"):
                     figsize = (4, 3)
 
                     with ui.nav_panel("Operations", value="ops_toolset_nav"):
-
                         with ui.layout_columns(col_widths=(6, 6), gap=button_gap, row_heights=button_heights):
+                            tool_ns = globals()
                             for op_name in ops_menu:
                                 op_id = op_name.lower().replace(' ', '_')
-                                exec(tool_icon_code(op_id, figsize))
+                                exec(tool_icon_code(op_id, figsize), tool_ns)
                                 icon = output_plot(f"{op_id}_button_icon",
                                                    width=icon_size[0], height=icon_size[1])
 
                                 ui.input_action_button(f"{op_id}_button", "", icon=icon,
                                                        style="padding:0px;", disabled=True)
-                                exec(tool_effect_code(op_name, "op"))
+                                exec(tool_effect_code(op_name, "op"), tool_ns)
                             
                     with ui.nav_panel("Visuals", value="dvs_toolset"):
-                        
                         with ui.layout_columns(col_widths=(6, 6), gap=button_gap, row_heights=button_heights):
+                            tool_ns = globals()
                             for dv_name in dvs_menu:
                                 dv_id = dv_name.lower().replace(' ', '_')
-                                exec(tool_icon_code(dv_id, figsize))
+                                exec(tool_icon_code(dv_id, figsize), tool_ns)
                                 icon = output_plot(f"{dv_id}_button_icon",
                                                    width=icon_size[0], height=icon_size[1])
 
                                 ui.input_action_button(f"{dv_id}_button", "", icon=icon,
                                                        style="padding:0px;", disabled=True)
-                                exec(tool_effect_code(dv_name, "dv"))
+                                exec(tool_effect_code(dv_name, "dv"), tool_ns)
 
                     with ui.nav_panel("Models", value="mds_toolset"):
                         with ui.layout_columns(col_widths=(6, 6), gap=button_gap, row_heights=button_heights):
+                            tool_ns = globals()
                             for md_name in mds_menu:
                                 md_id = md_name.lower().replace(' ', '_')
-                                exec(tool_icon_code(md_id, figsize))
+                                exec(tool_icon_code(md_id, figsize), tool_ns)
                                 icon = output_plot(f"{md_id}_button_icon",
                                                    width=icon_size[0], height=icon_size[1])
 
                                 ui.input_action_button(f"{md_id}_button", "", icon=icon,
                                                        style="padding:0px;", disabled=True)
-                                exec(tool_effect_code(md_name, "md"))
+                                exec(tool_effect_code(md_name, "md"), tool_ns)
 
-            with ui.layout_columns(col_widths=(6, 6), gap="20px", height="100px"):
+            with ui.layout_columns(col_widths=(6, 6), gap="20px", height="105px"):
                 
                 with ui.card():
                     ui.card_header("Data file", style=chd_style)
@@ -326,7 +328,7 @@ with ui.navset_hidden(id="main"):
                                 buf.seek(0)
                                 yield buf.getvalue()
                         
-            with ui.card(height='780px'):
+            with ui.card(height='775px'):
                 @render.express
                 def canvas_plot_func():
 
@@ -1798,16 +1800,17 @@ with ui.navset_hidden(id="main"):
                 mds_dict = mds.get()
                 source = mds_dict["source"]
                 try:
-                    exec(f"{name} = data")
-                    exec("\n".join(source["imports"]))
-                    exec(source["code"].replace("print", ""))
-                    result_summary = eval("result.summary()").__str__()
+                    statsmodels_ns = {name: data}
+                    #exec(f"{name} = data")
+                    exec("\n".join(source["imports"]), statsmodels_ns)
+                    exec(source["code"].replace("print", ""), statsmodels_ns)
+                    result_summary = eval("result.summary()", statsmodels_ns).__str__()
                     name_save = input.statsmodels_output_text().strip()
                     if name_save != "":
                         invalid = invalid_name(name_save, error=True)
                         if invalid is not False:
                             raise invalid
-                    mds_dict["memory"] = dict(result=eval("result"))
+                    mds_dict["memory"] = dict(result=eval("result", statsmodels_ns))
                 except Exception as err:
                     result_summary = err
                     mds_dict["memory"] = {}
@@ -1822,11 +1825,13 @@ with ui.navset_hidden(id="main"):
                 current_code = mds_dict["source"]["code"][3].replace("print", "")
                 test_set = input.sklearn_test_set_switch()
                 try:
-                    exec("\n".join(current_imports))
+                    sklearn_ns = {}
+                    exec("\n".join(current_imports), sklearn_ns)
                     memory = mds_dict["memory"]
-                    for key in memory:
-                        exec(f"{key} = memory[{key.__repr__()}]")
-                    exec(current_code)
+                    for key, value in memory.items():
+                        #exec(f"{key} = memory[{key.__repr__()}]")
+                        sklearn_ns[key] = value
+                    exec(current_code, sklearn_ns)
                     name_save = input.sklearn_output_text().strip()
                     if name_save != "":
                         invalid = invalid_name(name_save, error=True)
@@ -1836,7 +1841,8 @@ with ui.navset_hidden(id="main"):
                     if "search = " in current_code:
                         param_lines = []
                         for p in memory["params"]:
-                            param_lines.append(f"- {p[p.index('__')+2:]}: {eval('search').best_params_[p]}")
+                            best_param_value = eval('search', sklearn_ns).best_params_[p]
+                            param_lines.append(f"- {p[p.index('__')+2:]}: {best_param_value}")
                         params_code = (
                             "Best parameters:\n"
                             f"{'\n'.join(param_lines)}\n\n"
@@ -1845,14 +1851,14 @@ with ui.navset_hidden(id="main"):
                         params_code = ""
 
                     if test_set:
-                        test_result = f"\nTest score: {eval('test_score'):.4f}"
+                        test_result = f"\nTest score: {eval('test_score', sklearn_ns):.4f}"
                     else:
                         test_result = ""
 
                     result = (
                         f"{params_code}"
-                        f"{eval('table')}\n\n"
-                        f"Cross-validation score: {eval('score').mean():.4f}"
+                        f"{eval('table', sklearn_ns)}\n\n"
+                        f"Cross-validation score: {eval('score', sklearn_ns).mean():.4f}"
                         f"{test_result}"
                     )            
                 except Exception as err:
@@ -1870,7 +1876,7 @@ with ui.navset_hidden(id="main"):
                         variables.extend(["proba_test"])
                 
                     for var in variables:
-                        mds_dict["memory"][var] = eval(var)
+                        mds_dict["memory"][var] = eval(var, sklearn_ns)
                 
                 mds_dict["results"] = result
                 md_memory.set(dict(result=result))
@@ -2025,16 +2031,18 @@ with ui.navset_hidden(id="main"):
                             
                             current_imports = mds_dict["source"]["imports"][1]
                             current_code = mds_dict["source"]["code"][1]
+                            sklearn_ns = {}
                             if len(current_imports) > 0:
-                                exec('\n'.join(current_imports))
+                                exec('\n'.join(current_imports), sklearn_ns)
                             if current_code != "":
                                 name = node["name"]
-                                exec(f"{name} = data")
-                                exec(current_code)
-                                mds_dict["memory"]["x"] = eval("x")
-                                mds_dict["memory"]["y"] = eval("y")
+                                #exec(f"{name} = data")
+                                sklearn_ns[name] = data
+                                exec(current_code, sklearn_ns)
+                                mds_dict["memory"]["x"] = eval("x", sklearn_ns)
+                                mds_dict["memory"]["y"] = eval("y", sklearn_ns)
                                 if "to_dummies = " in current_code:
-                                    mds_dict["memory"]["to_dummies"] = eval("to_dummies")
+                                    mds_dict["memory"]["to_dummies"] = eval("to_dummies", sklearn_ns)
 
                         elif page == 2:
                             @render.ui
@@ -2043,14 +2051,15 @@ with ui.navset_hidden(id="main"):
                                 current_code = mds_dict["source"]["code"][2]
                                 if current_code != "":
                                     try:
+                                        sklearn_ns = {}
                                         if "to_dummies" in mds_dict["memory"]:
-                                            to_dummies = mds_dict["memory"]["to_dummies"]
-                                        exec('\n'.join(current_imports))
-                                        exec(current_code)
-                                        mds_dict["memory"]["pipe"] = eval("pipe")
+                                            sklearn_ns["to_dummies"] = mds_dict["memory"]["to_dummies"]
+                                        exec('\n'.join(current_imports), sklearn_ns)
+                                        exec(current_code, sklearn_ns)
+                                        mds_dict["memory"]["pipe"] = eval("pipe", sklearn_ns)
                                         if "params = " in current_code:
-                                            mds_dict["memory"]["params"] = eval("params") 
-                                        return ui.HTML(eval("pipe")._repr_html_())
+                                            mds_dict["memory"]["params"] = eval("params", sklearn_ns) 
+                                        return ui.HTML(eval("pipe", sklearn_ns)._repr_html_())
                                     except Exception as err:
                                         return ui_block(str(err), "danger")
                         
@@ -2069,7 +2078,6 @@ with ui.navset_hidden(id="main"):
                             def sklearn_plots_display():
                                 memory = md_memory.get()
                                 if mds_dict["type"] == "Classifier":
-
                                     y_label = input.model_dependent_selectize()
                                     if y_label == "":
                                         return 
@@ -2092,12 +2100,14 @@ with ui.navset_hidden(id="main"):
                                     if isinstance(memory["result"], str):
                                         @expressify
                                         def sklearn_plot_display(idx):
+                                            sklearn_ns = dict(mds=mds, render=render)
                                             exec(
                                                 "@render.plot\n"
                                                 f"def plot_display_fun{idx}():\n"
                                                 "    mds_dict = mds.get()\n"
                                                 f"    if {idx} < len(mds_dict['outputs']):\n"
-                                                f"        return mds_dict['outputs'][{idx}]['fig']"
+                                                f"        return mds_dict['outputs'][{idx}]['fig']",
+                                                sklearn_ns
                                             )
                                             outputs = mds.get()["outputs"]
                                             width, height = outputs[idx]["fig"].get_size_inches() * 100
@@ -2106,14 +2116,18 @@ with ui.navset_hidden(id="main"):
                                         with ui.layout_columns(col_widths=(6, 6)):
                                             for idx, out in enumerate(outputs):
                                                 if out["type"] == 'plot':
+                                                    sklearn_ns = {}
                                                     current_imports = out["imports"]
+                                                    current_imports.extend(["import pandas as pd",
+                                                                            "import numpy as np"])
                                                     current_code = out["code"]
                                                     if len(current_imports) > 0:
-                                                        exec("\n".join(current_imports))
+                                                        exec("\n".join(current_imports), sklearn_ns)
                                                     for key, value in mds_dict["memory"].items():
-                                                        exec(f"{key} = value")
-                                                    exec("\n".join(current_code.split("\n")[:-1]))
-                                                    out["fig"] = eval("fig")
+                                                        #exec(f"{key} = value")
+                                                        sklearn_ns[key] = value
+                                                    exec("\n".join(current_code.split("\n")[:-1]), sklearn_ns)
+                                                    out["fig"] = eval("fig", sklearn_ns)
                                                     sklearn_plot_display(idx)
                                 else:
                                     ui.markdown(" ")
@@ -2189,19 +2203,22 @@ with ui.navset_hidden(id="main"):
                 
                 node_list.append(model_node)
                 
+                sklearn_ns = {}
                 for key, value in mds_dict["memory"].items():
-                    exec(f"{key} = value")
+                    #exec(f"{key} = value")
+                    sklearn_ns[key] = value
+                sklearn_ns[name] = data
 
                 output_nodes = []
                 for out in mds_dict["outputs"]:
                     if out["type"] == "data":
                         if len(out["imports"]) > 0:
-                            exec("\n".join(out['imports']))
-                        exec(f"{name} = data") #####################
-                        exec(out["code"])
+                            exec("\n".join(out['imports']), sklearn_ns)
+                        #exec(f"{name} = data") #####################
+                        exec(out["code"], sklearn_ns)
 
                         name_out = out["name_out"]
-                        data_out = eval(name_out)
+                        data_out = eval(name_out, sklearn_ns)
                         view = dict(name=name_out, string=data_out.to_string(max_rows=6, max_cols=6),
                                     shape=data_out.shape)
                         info = dict(name=name_out, data=data_out, view=view,
