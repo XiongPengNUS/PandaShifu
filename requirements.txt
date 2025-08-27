@@ -8,6 +8,7 @@ seaborn >= 0.13.2
 bokeh >= 3.7.2
 jupyter_bokeh >= 4.0.5
 shinywidgets >= 0.3.2
-scikit-learn >= 1.5.2
+scikit-learn >= 1.7.1
+imbalanced-learn >= 0.14.0
 statsmodels >= 0.14.2
 

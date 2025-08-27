@@ -141,16 +141,19 @@ cat_cmaps = ['Pastel1', 'Pastel2', 'Paired', 'Accent', 'Dark2',
              'tab20c']
 
 # The menu of all operation tools
-ops_menu = ["Select columns", "Filter rows", "Sort rows",
+ops_menu = ["Value Counts Operations",
+            "Select columns", "Sort rows", "Boolean conditions", "Treat missing values",
             "Correlation", "Aggregation", "Group by", "Pivot table",
-            "Treat missing values", "Time trend", "Clustering", "Add columns"]
+            "Add columns", "Time trend", "Clustering", 
+            "ANOVA", "Variance inflation factor", "Over sampling"]
 
 # The menu of all data visualization tools
-dvs_menu = ["Value counts", "Histogram", "KDE", "Box plot", "Pair plot",
-            "Bar chart", "Line plot", "Scatter plot", "Filled areas"]
+dvs_menu = ["Value counts", "Probability plot", "Histogram", "KDE", "Box plot", "Pair plot",
+            "Heat map", "Bar chart", "Line plot", "Filled areas",
+            "Scatter plot", "Regression plot", "ACF and PACF"]
 
 # The menu of all modeling tools
-mds_menu = ["Statsmodels", "Sklearn model"]
+mds_menu = ["Statsmodels", "Sklearn models"]
 
 # Reactive values shared across the app
 nodes = reactive.value([])
@@ -191,18 +194,19 @@ var_names = reactive.value([])
 with ui.navset_hidden(id="main"):
     with ui.nav_panel(None, value="canvas_panel"):
         ui.HTML('<br>')
-        with ui.layout_sidebar(height='1020px'):
-            with ui.sidebar(width='350px', open="always", bg='#f8f8f8', height="1020px"):
+        with ui.layout_sidebar(height='900px'):
+            with ui.sidebar(width='350px', open="always", bg='#f8f8f8', height="900px"):
 
                 with ui.navset_tab(id="main_toolset_navs"):
-                    button_gap = "25px"
-                    button_heights = "110px"
-                    
-                    icon_size = "140px", "120px"
+                    button_gap = "10px"
+                    #button_heights = "110px"    
+                    #icon_size = "140px", "120px"
+                    button_heights = "90px"
+                    icon_size = "95px", "70px"
                     figsize = (4, 3)
 
                     with ui.nav_panel("Operations", value="ops_toolset_nav"):
-                        with ui.layout_columns(col_widths=(6, 6), gap=button_gap, row_heights=button_heights):
+                        with ui.layout_columns(col_widths=(4, 4, 4), gap=button_gap, row_heights=button_heights):
                             tool_ns = globals()
                             for op_name in ops_menu:
                                 op_id = op_name.lower().replace(' ', '_')
@@ -211,11 +215,12 @@ with ui.navset_hidden(id="main"):
                                                    width=icon_size[0], height=icon_size[1])
 
                                 ui.input_action_button(f"{op_id}_button", "", icon=icon,
-                                                       style="padding:0px;", disabled=True)
+                                                       style="padding:0px;padding-top:5px;padding-bottom:5px",
+                                                       disabled=True)
                                 exec(tool_effect_code(op_name, "op"), tool_ns)
                             
                     with ui.nav_panel("Visuals", value="dvs_toolset"):
-                        with ui.layout_columns(col_widths=(6, 6), gap=button_gap, row_heights=button_heights):
+                        with ui.layout_columns(col_widths=(4, 4, 4), gap=button_gap, row_heights=button_heights):
                             tool_ns = globals()
                             for dv_name in dvs_menu:
                                 dv_id = dv_name.lower().replace(' ', '_')
@@ -224,11 +229,12 @@ with ui.navset_hidden(id="main"):
                                                    width=icon_size[0], height=icon_size[1])
 
                                 ui.input_action_button(f"{dv_id}_button", "", icon=icon,
-                                                       style="padding:0px;", disabled=True)
+                                                       style="padding:0px;padding-top:5px;padding-bottom:5px",
+                                                       disabled=True)
                                 exec(tool_effect_code(dv_name, "dv"), tool_ns)
 
                     with ui.nav_panel("Models", value="mds_toolset"):
-                        with ui.layout_columns(col_widths=(6, 6), gap=button_gap, row_heights=button_heights):
+                        with ui.layout_columns(col_widths=(4, 4, 4), gap=button_gap, row_heights=button_heights):
                             tool_ns = globals()
                             for md_name in mds_menu:
                                 md_id = md_name.lower().replace(' ', '_')
@@ -237,10 +243,11 @@ with ui.navset_hidden(id="main"):
                                                    width=icon_size[0], height=icon_size[1])
 
                                 ui.input_action_button(f"{md_id}_button", "", icon=icon,
-                                                       style="padding:0px;", disabled=True)
+                                                       style="padding:0px;padding-top:5px;padding-bottom:5px",
+                                                       disabled=True)
                                 exec(tool_effect_code(md_name, "md"), tool_ns)
 
-            with ui.layout_columns(col_widths=(6, 6), gap="20px", height="105px"):
+            with ui.layout_columns(col_widths=(6, 6), gap="20px", height="140px"):
                 
                 with ui.card():
                     ui.card_header("Data file", style=chd_style)
@@ -425,16 +432,21 @@ with ui.navset_hidden(id="main"):
         @render.express
         def float_node_view():
             view = node_view.get()
-            pos = dict(left="35%", bottom="5%")
+            pos = dict(left="35%", bottom="12%")
             if view is not None:
                 if "string" in view:
                     with ui.panel_absolute(draggable=True, width="590px", **pos):
                         with ui.panel_well():
                             ui.card_header("Dataset", style=chd_style)
-                            with ui.card(height=270):
+                            with ui.card():#(height=270):
                                 row, col = view["shape"]
-                                ui.markdown(f"```{view['name']}```: {row} rows x {col} columns\n"
-                                            f"```\n{view['string']}\n```")
+                                #ui.markdown(f"```{view['name']}```: {row} rows x {col} columns\n"
+                                #            f"```\n{view['string']}\n```")
+                                ui.markdown(
+                                    f"<pre style='font-size:12px'><code>{view['name']}:</code>"
+                                    f" {row} rows x {col} columns<br><br>"
+                                    f"<code>{view['string'].replace('\n', '<br>')}</code></pre>"
+                                )
                             ui.input_action_button("close_data_view", "Close", width="110px")
 
                 elif "width" in view and "height" in view:
@@ -445,7 +457,7 @@ with ui.navset_hidden(id="main"):
                     with ui.panel_absolute(draggable=True, width=f"{width + 90}px", **pos):
                         with ui.panel_well():
                             ui.card_header("Figure", style=chd_style)
-                            with ui.card(height=height+20):
+                            with ui.card(height=height+20, max_height=480):
                                 @render.plot(width=width, height=height)
                                 def fig_view_plot():
                                     return fig
@@ -465,22 +477,27 @@ with ui.navset_hidden(id="main"):
                                 code = "\n".join(clines)
                             with ui.card():
                                 ui.markdown(view["markdown"])
-                                hr()
+                                hr(0.5)
                                 #with ui.layout_columns(col_widths=(-10, 2)):
                                 #    ui.input_action_link("node_view_copy", "copy", style="height:1px")
-                                @render.code
-                                def source_code_view():
-                                    return code
+                                #@render.code
+                                #def source_code_view():
+                                #    return code
+                                code_html = code.replace("\n", "<br>")
+                                ui.markdown(f"<pre style='font-size:12px'><code>{code_html}</code></pre>")
+
                             ui.input_action_button("close_source_view", "Close", width="110px")
                 elif "results" in view:
-                    with ui.panel_absolute(draggable=True, width=f"750px", **pos):
+                    with ui.panel_absolute(draggable=True, width=f"650px", **pos):
                         with ui.panel_well():
                             ui.card_header("Model", style=chd_style)
                             results = view["results"]
-                            with ui.card(height=280):
-                                @render.code
-                                def source_code_view():
-                                    return results
+                            with ui.card(max_height=280):
+                                #@render.code
+                                #def source_code_view():
+                                #    return results
+                                results_html = results.replace("\n", "<br>")
+                                ui.markdown(f"<pre style='font-size:12px'><code>{results_html}</code></pre>")
                             ui.input_action_button("close_model_view", "Close", width="110px")
 
         @reactive.effect
@@ -505,8 +522,8 @@ with ui.navset_hidden(id="main"):
 
     with ui.nav_panel(None, value="ops_panel"):
         ui.HTML('<br>')
-        with ui.layout_sidebar(height='1020px'):
-            with ui.sidebar(bg='#f8f8f8', width='350px', height='1020px'):
+        with ui.layout_sidebar(height='900px'):
+            with ui.sidebar(bg='#f8f8f8', width='350px', height='900px'):
                 
                 @render.express
                 def ops_panel_ui():
@@ -518,7 +535,6 @@ with ui.navset_hidden(id="main"):
                     if data_in is None:
                         return
 
-                    #columns = to_choices(data_in.columns)
                     columns = to_column_choices(data_in.columns)
                     col_nums, col_cats, col_nbs = num_cat_labels(data_in)
                     aggs = ['count', 'mean', 'median', 'std', 'var', 'min', 'max', 'sum']
@@ -527,12 +543,47 @@ with ui.navset_hidden(id="main"):
                     op_type = op_selected.get()
                     ui.markdown(f"#### {op_type}")
 
-                    if op_type == "Select columns":
+                    if op_type == "Value Counts Operations":
+                        count_choices = discrete_labels(data_in, max_cats=100)
+                        ui.input_selectize("counts_ops_selectize", "Columns",
+                                           choices=count_choices, selected=[],
+                                           multiple=True)
+                        
+                        @render.express(inline=True)
+                        def counts_ops_unstack_ui():
+                            selected = list(input.counts_ops_selectize())
+                            maxItems = len(selected) - 1 if len(selected) > 1 else 0
+                            ui.input_selectize("counts_ops_unstack_selectize", "Unstack levels",
+                                               choices=selected, selected=[],
+                                               multiple=True, remove_button=True,
+                                               options={"placeholder": "None", "maxItems": maxItems})
+
+                        @render.express(inline=True)
+                        def counts_ops_sort_by_ui():
+                            unstack = list(input.counts_ops_unstack_selectize())
+                            if len(unstack) == 0:
+                                with ui.layout_columns(col_widths=(6, 6)):
+                                    ui.input_switch("counts_ops_sort_switch",
+                                                    "Sort", value=True)
+                                    ui.input_switch("counts_ops_sort_descending_switch",
+                                                    "Descending", value=True)
+                        
+                        with ui.layout_columns(col_widths=(6, 6)):
+                            ui.input_switch("counts_ops_normalize_switch", "Normalize")
+                            ui.input_switch("counts_ops_reset_switch", "Reset index")
+    
+                    elif op_type == "Select columns":
                         ui.input_selectize("select_columns_selectize", "Columns",
                                            choices=columns, selected=columns,
                                            multiple=True)
-
-                    elif op_type == "Filter rows":
+                    elif op_type == "Sort rows":
+                        ui.input_selectize("sort_columns_selectize", "Sort on columns",
+                                           choices=columns, selected=[], multiple=True,
+                                           remove_button=True)
+                        with ui.layout_columns(col_widths=(6, 6)):
+                            ui.input_switch("sort_descending_switch", "Descending")
+                            ui.input_switch("sort_reset_switch", "Reset index")
+                    elif op_type == "Boolean conditions":
                         with ui.layout_columns(col_widths=(8, 4)):
                             ui.input_selectize("filter_column_selectize", "Column on the left",
                                                choices=[""] + columns)
@@ -542,7 +593,7 @@ with ui.navset_hidden(id="main"):
                         ui.input_text("filter_value_text", "Value on the right")
 
                         with ui.layout_columns(col_widths=(-5, 7)):
-                            ui.input_action_button("add_filter_button", "New filter")
+                            ui.input_action_button("add_filter_button", "New condition")
                         
                         @reactive.effect
                         @reactive.event(input.filter_column_selectize,
@@ -554,15 +605,19 @@ with ui.navset_hidden(id="main"):
                             cond3 = str_to_values(input.filter_value_text(), sup=True) is None
                             ui.update_action_button("add_filter_button", disabled=(cond1 or cond2 or cond3))
                         
-                        ui.input_switch("filter_reset_switch", "Reset index")
-                            
-                    elif op_type == "Sort rows":
-                        ui.input_selectize("sort_columns_selectize", "Sort on columns",
-                                           choices=columns, selected=[], multiple=True,
-                                           remove_button=True)
                         with ui.layout_columns(col_widths=(6, 6)):
-                            ui.input_switch("sort_descending_switch", "Descending")
-                            ui.input_switch("sort_reset_switch", "Reset index")
+                            ui.input_switch("filter_select_rows_switch", "Filter rows")
+
+                            @render.express
+                            def filter_reset_index_ui():
+                                if input.filter_select_rows_switch():
+                                    ui.input_switch("filter_reset_switch", "Reset index")
+                        
+                        @render.express
+                        def filter_condition_column_ui():
+                            if not input.filter_select_rows_switch():
+                                ui.input_text("filter_condition_column_text", "To column")
+
                     elif op_type == "Correlation":
                         ui.input_selectize("corr_metric_selectize", "Metric",
                                            choices=["Correlation", "Covariance"])
@@ -623,20 +678,118 @@ with ui.navset_hidden(id="main"):
                         ui.input_selectize("time_trend_columns_selectize", "Columns",
                                            choices=[""] + col_nums,
                                            multiple=True, remove_button=True)
-                        
-                        with ui.layout_columns(col_widths=(8, 4)):
+                        with ui.layout_columns(col_widths=(4, 8)):
                             transforms =  ["change", "relative change", "log change", "moving average"]
-                            ui.input_selectize("time_trend_transform_selectize", "Transform",
+                            inline_label("Transform")
+                            ui.input_selectize("time_trend_transform_selectize", "",
                                                choices=[""] + transforms)
-                            ui.input_numeric("time_trend_step_numeric", "Step",
-                                             min=1, max=len(data_in), value=1, step=1)
+                            #inline_label("Steps")
+                            #ui.input_numeric("time_trend_step_numeric", "",
+                            #                 min=1, max=len(data_in), value=1, step=1)
+                            inline_label("Steps")
+                            ui.input_text("time_trend_steps_text", "", placeholder="1")
+                    elif op_type == "ANOVA":
+                        ui.input_selectize("anova_target_selectize", "Numerical target",
+                                           choices=[""] + col_nums)
+                        ui.input_selectize("anova_features_selectize", "Features",
+                                           choices=[""], multiple=True, remove_button=True)
+                        ui.input_text("anova_formula_text", "Formula")
+
+                        with ui.layout_columns(col_widths=(2, 4, 2, 4)):
+                            inline_label("Type")
+                            ui.input_selectize("anova_type_selectize", "", choices=["I", "II", "III"])
+                            inline_label("Test")
+                            ui.input_selectize("anova_test_selectize", "", choices=["F", "Chisq", "Cp"])
+
+                        @reactive.effect
+                        @reactive.event(input.anova_target_selectize, ignore_init=True)
+                        def anoava_features_choices_update():
+                            node = node_input.get()
+                            data_in = node["data"]
+                            max_cats = np.minimum(len(data_in)//10, 100)
+                            target = to_selected_columns(input.anova_target_selectize(), data_in)
+                            if target != "":
+                                xdata = data_in.drop(columns=[target])
+                                feature_choices = discrete_labels(xdata, max_cats=max_cats)
+                                ui.update_selectize("anova_features_selectize",
+                                                    choices=[""] + feature_choices, selected="")
+                            else:
+                                ui.update_selectize("anova_features_selectize",
+                                                    choices=[""] + columns)
+                        
+                        @reactive.effect
+                        @reactive.event(input.anova_target_selectize,
+                                        input.anova_features_selectize, ignore_init=True)
+                        def anova_formula_text_update():
+                            target = to_selected_columns(input.anova_target_selectize(), data_in)
+                            features = to_selected_columns(input.anova_features_selectize(), data_in)
+                            if target != "" and len(features) > 0:
+                                features_list = [f"C({item})" if item in col_nbs else item for item in features]
+                                formula = f"{target} ~ {' + '.join(features_list)}"
+                                ui.update_text("anova_formula_text", value=formula)
+                            else:
+                                ui.update_text("anova_formula_text", value="")
+
+                    elif op_type == "Variance inflation factor":
+                        #_, feature_choices = model_variables(data_in)
+                        feature_choices = [col for col in col_nbs if
+                                           data_in[col].isnull().sum() == 0 and
+                                           data_in[col].min() < data_in[col].max()]
+                        ui.input_selectize("vif_features_selectize", "Features",
+                                           choices=feature_choices, selected=col_nums,
+                                           multiple=True)
+                        with ui.layout_columns(col_widths=(6, 6)):
+                            ui.input_switch("vif_add_constant_switch", "Intercept", value=True)
+                            ui.input_switch("vif_reset_switch", "Reset index", value=True)
+
                     elif op_type == "Clustering":
                         ui.input_selectize("clustering_method_selectize", "Method",
                                            choices=["K-means clustering", "Hierarchical clustering"])
                         ui.input_selectize("clustering_columns_selectize", "Features for clustering",
                                            choices=[""] + col_nbs, multiple=True, remove_button=True)
                         ui.input_text("clustering_numbers_text", "Numbers of clusters")
-                    
+                    elif op_type == "Over sampling":
+                        ui.input_selectize("over_sampling_target_selectize", "Categorical target",
+                                           choices=[""] + col_cats)
+                        ui.input_selectize("over_sampling_features_selectize", "Features",
+                                           choices=[""] + columns,
+                                           multiple=True, remove_button=True)
+                        ui.input_selectize("over_sampling_method_selectize", "Method",
+                                           choices=["", "Random over-sampling", "SMOTE", "ADASYN"])
+                        with ui.layout_columns(col_widths=(6, 6)):
+                            strategies = ["auto", "minority", "not minority", "not majority", "all"]
+                            ui.input_selectize("over_sampling_strategy_selectize", "Strategy",
+                                               choices=strategies)
+                            ui.input_numeric("over_sampling_k_neighbors_numeric", "Neighbor No.",
+                                             min=1, max=50, step=1, value=5)
+                        
+                        @reactive.effect
+                        @reactive.event(input.over_sampling_target_selectize)
+                        def over_sampling_features_choices_update():
+                            target = input.over_sampling_target_selectize()
+                            if target != "":
+                                cols = [c for c in columns if c != target]
+                                ui.update_selectize("over_sampling_features_selectize",
+                                                    choices=cols, selected=cols)
+                            else:
+                                ui.update_selectize("over_sampling_features_selectize",
+                                                    choices=[""] + columns, selected="")
+                        
+                        @reactive.effect
+                        @reactive.event(input.over_sampling_features_selectize)
+                        def over_sampling_method_ui_update():
+                            node = node_input.get()
+                            data_in = node["data"]
+                            features = to_selected_columns(input.over_sampling_features_selectize(), data_in)
+                            xdata = data_in[features]
+                            is_num = xdata.apply(is_numeric_dtype, axis=0).values
+                            if all(is_num):
+                                choices = ["", "Random over-sampling", "SMOTE", "ADASYN"]
+                            else:
+                                choices = ["", "Random over-sampling", "SMOTE"]
+                            ui.update_selectize("over_sampling_method_selectize",
+                                                choices=choices, selected="")
+
                     elif op_type == "Add columns":
                         choices = ["Arithmetic expression",
                                    "Type conversion", "String operations",
@@ -861,8 +1014,8 @@ with ui.navset_hidden(id="main"):
 
     with ui.nav_panel(None, value="dvs_panel"):
         color = reactive.value('#1f77b4')
-        with ui.layout_sidebar(height="1020px"):
-            with ui.sidebar(bg='#f8f8f8', width='350px', height='1020px'):
+        with ui.layout_sidebar(height="900px"):
+            with ui.sidebar(bg='#f8f8f8', width='350px', height='900px'):
             
                 @render.express
                 def dvs_panel_ui():
@@ -884,7 +1037,9 @@ with ui.navset_hidden(id="main"):
 
                             if dv_type == "Value counts":
                                 choices = [""] + discrete_labels(data, max_cats=100)
-                                ui.input_selectize("value_counts_column_selectize", "Column", choices=choices)
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Column")
+                                    ui.input_selectize("value_counts_column_selectize", "", choices=choices)
 
                                 with ui.layout_columns(col_widths=(6, 6)):
                                     ui.input_selectize("value_counts_direction_selectize", "Direction",
@@ -937,13 +1092,16 @@ with ui.navset_hidden(id="main"):
                                                     min=0.2, max=1, step=0.05, value=1)
                             
                             elif dv_type == "Histogram":
-                                ui.input_selectize("hist_column_selectize", "Column",
-                                                   choices=[""]+col_nums)
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Column")
+                                    ui.input_selectize("hist_column_selectize", "",
+                                                       choices=[""]+col_nums)
 
-                                choices = [""] + discrete_labels(data, max_cats=8)
-                                ui.input_selectize("hist_group_by_selectize", "Group by",
-                                                   choices=choices, remove_button=True,
-                                                   options={"placeholder": "None"})
+                                    choices = [""] + discrete_labels(data, max_cats=8)
+                                    inline_label("Group")
+                                    ui.input_selectize("hist_group_by_selectize", "",
+                                                       choices=choices, remove_button=True,
+                                                       options={"placeholder": "None"})
                                 
                                 with ui.layout_columns(col_widths=(6, 6)):
                                     ui.input_numeric("hist_bins_numeric", "Bins", min=5, max=80, value=10)
@@ -1012,14 +1170,16 @@ with ui.navset_hidden(id="main"):
                                         ui.update_navs("hist_conditional_ui", selected="hist_multiple_case")
                             
                             elif dv_type == "KDE":
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Column")
+                                    ui.input_selectize("kde_column_selectize", "",
+                                                       choices=[""]+col_nums)
 
-                                ui.input_selectize("kde_column_selectize", "Column",
-                                                   choices=[""]+col_nums)
-
-                                choices = [""] + discrete_labels(data, max_cats=8)
-                                ui.input_selectize("kde_group_by_selectize", "Group by",
-                                                   choices=choices, remove_button=True,
-                                                   options={"placeholder": "None"})
+                                    choices = [""] + discrete_labels(data, max_cats=8)
+                                    inline_label("Group")
+                                    ui.input_selectize("kde_group_by_selectize", "",
+                                                       choices=choices, remove_button=True,
+                                                       options={"placeholder": "None"})
                                 
                                 @reactive.effect
                                 @reactive.event(input.kde_column_selectize)
@@ -1081,21 +1241,26 @@ with ui.navset_hidden(id="main"):
                                         ui.update_navs("kde_conditional_ui", selected="kde_multiple_case")
 
                             elif dv_type == "Box plot":
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Column")
+                                    ui.input_selectize("boxplot_column_selectize", "",
+                                                       choices=[""]+col_nums)
 
-                                ui.input_selectize("boxplot_column_selectize", "Column",
-                                                   choices=[""]+col_nums)
-
-                                groups = [""] + discrete_labels(data, max_cats=50)
-                                ui.input_selectize("boxplot_group_by_selectize", "Group by",
-                                                   choices=groups, remove_button=True,
-                                                   options={"placeholder": "None"})
+                                    groups = [""] + discrete_labels(data, max_cats=50)
+                                    inline_label("Group")
+                                    ui.input_selectize("boxplot_group_by_selectize", "",
+                                                       choices=groups, remove_button=True,
+                                                       options={"placeholder": "None"})
                                 
-                                hues = [""] + discrete_labels(data, max_cats=8)
-                                ui.input_selectize("boxplot_hue_selectize", "Hues for",
-                                                   choices=hues, remove_button=True,
-                                                   options={"placeholder": "None"})
+                                    hues = [""] + discrete_labels(data, max_cats=8)
+                                    inline_label("Hues")
+                                    ui.input_selectize("boxplot_hue_selectize", "",
+                                                       choices=hues, remove_button=True,
+                                                       options={"placeholder": "None"})
                                 
                                 with ui.layout_columns(col_widths=(6, 6)):
+                                    ui.input_switch("boxplot_notch_switch", "Notch")
+                                    ui.input_switch("boxplot_mean_switch", "Mean")
                                     ui.input_selectize("boxplot_direction_selectize", "Direction",
                                                        choices=["Vertical", "Horizontal"])
                                     ui.input_numeric("boxplot_width_numeric", "Width",
@@ -1146,6 +1311,54 @@ with ui.navset_hidden(id="main"):
                                     else:
                                         ui.update_navs("boxplot_conditional_ui", selected="boxplot_multiple_case")
                             
+                            elif dv_type == "Probability plot":
+                                with ui.layout_columns(col_widths=(4, 8)):
+                                    inline_label("Column")
+                                    ui.input_selectize("proba_plot_selectize", "", choices=[""] + col_nums)
+                                    distr_choices = ["Normal", "Exponential", "Uniform"]
+                                    inline_label("Distribution")
+                                    ui.input_selectize("proba_plot_distri_selectize", "",
+                                                       choices=distr_choices)
+                                
+                                ui.input_switch("proba_plot_standardize_switch", "Standardize")
+
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Palette", pt="8px")
+                                    with ui.layout_columns(col_widths=(6, 6), gap="2px"):
+
+                                        @render.ui
+                                        def probplot_hexcolor():
+                                            c = color.get()
+                                            return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
+
+                                        @render_bokeh(height="36px", width="100%", fill=True)
+                                        def probplot_color_picker():
+                                            picker = ColorPicker(
+                                                title="",
+                                                color='#1f77b4',
+                                                min_width=95
+                                            )
+                                        
+                                            def update_probplot_picker_color(attr, old, new):
+                                                color.set(new)
+
+                                            picker.on_change('color', update_probplot_picker_color)
+                                            return picker
+
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Opacity", pt="22px")
+                                    ui.input_slider("proba_plot_alpha_slider", "",
+                                                    min=0.2, max=1, step=0.05, value=1)
+                                
+                                @reactive.effect
+                                @reactive.event(input.proba_plot_selectize,
+                                                input.proba_plot_standardize_switch)
+                                def proba_plot_labels_update():
+                                    if input.proba_plot_selectize() != "":
+                                        ui.update_text("fig_xlabel_text", value="Theoretical Quantiles")
+                                        std_code = "Standardized " if input.proba_plot_standardize_switch() else ""
+                                        ui.update_text("fig_ylabel_text", value=f"{std_code}Sample Quantiles")
+
                             elif dv_type == "Pair plot":
 
                                 ui.input_selectize("pair_columns_selectize", "Columns", 
@@ -1181,6 +1394,20 @@ with ui.navset_hidden(id="main"):
                                                        choices=["auto", "kde", "hist"])
                                 ui.input_switch("pair_corner_switch", "Corner")
                             
+                            elif dv_type == "Heat map":
+                                ui.input_selectize("heatmap_columns_selectize", "Columns",
+                                           choices=col_nbs, selected=col_nums,
+                                           multiple=True)
+                                
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Colormap")
+                                    ui.input_selectize("heatmap_colormap_selectize", "",
+                                                       choices=num_cmaps)
+                                
+                                with ui.layout_columns(col_widths=(6, 6)):
+                                    ui.input_switch("heatmap_annot_switch", "Annotate", value=True)
+                                    ui.input_switch("heatmap_top_tick_switch", "Ticks at top", value=True)
+
                             elif dv_type == "Bar chart":
                                 with ui.layout_columns(col_widths=(3, 9)):
                                     inline_label("Y-data")
@@ -1220,6 +1447,31 @@ with ui.navset_hidden(id="main"):
                                                                 disabled=input.bar_ydata_selectize() == "")
                                 
                                 hr(1, 0.4)
+                                with ui.layout_columns(col_widths=(6, 6)):
+                                    ui.input_switch("bar_sort_switch", "Sort bars")
+
+                                    @render.express
+                                    def bar_sort_ascending_ui():
+                                        if input.bar_sort_switch():
+                                            ui.input_switch("bar_sort_descending_switch", "Descending")
+
+                                @render.express
+                                def bar_sort_by_ui():
+                                    if input.bar_sort_switch():
+                                        choices = []
+                                        bars = dv_memory.get().copy()
+                                        for bar in bars:
+                                            choices.append(bar["ydata"])
+                                        if input.bar_ydata_selectize() != "":
+                                            choices.append(input.bar_ydata_selectize())
+                                        if input.bar_xdata_selectize() != "":
+                                            choices.append(input.bar_xdata_selectize())
+                                        with ui.layout_columns(col_widths=(3, 9)):
+                                            inline_label("Sort by")
+                                            ui.input_selectize("bar_sort_by_selectize", "",
+                                                               choices=[""] + choices, remove_button=True,
+                                                               options={"placeholder": "Row index"})
+                                
                                 with ui.layout_columns(col_widths=(3, 9)):
                                     inline_label("X-data")
                                     ui.input_selectize("bar_xdata_selectize", "",
@@ -1236,18 +1488,27 @@ with ui.navset_hidden(id="main"):
                                     inline_label("Width", pt="22px")
                                     ui.input_slider("bar_width_slider", "",
                                                     min=0.1, max=1.0, value=0.8, step=0.05)
-                                #with ui.layout_columns(col_widths=(3, 9)):
                                     inline_label("Opacity", pt="22px")
                                     ui.input_slider("bar_alpha_slider", "",
                                                     min=0.2, max=1.0, value=1.0, step=0.05)
                                 
                             elif dv_type == "Line plot":
-                                ui.input_selectize("line_ydata_selectize", "Y-data",
-                                                   choices=[""]+col_nbs)
-                                ui.input_selectize("line_xdata_selectize", "X-data",
-                                                   choices=[""]+columns, remove_button=True,
-                                                   options={"placeholder": "Row index"})
-                                
+
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Y-data")
+                                    ui.input_selectize("line_ydata_selectize", "",
+                                                       choices=[""]+col_nums)
+                                    
+                                    inline_label("X-data")
+                                    ui.input_selectize("line_xdata_selectize", "",
+                                                       choices=[""]+columns, remove_button=True,
+                                                       options={"placeholder": "Row index"})
+                                    
+                                    inline_label("Margin")
+                                    ui.input_selectize("line_margin_data_selectize", "",
+                                                       choices=[""]+col_nums,
+                                                       multiple=True, remove_button=True,
+                                                       options={"placeholder": "None", "maxItems": 2})
                                 with ui.layout_columns(col_widths=(6, 6)):
                                     styles = ["solid", "dash", "dot", "dash-dot"]
                                     ui.input_selectize("line_style_selectize", "Style", choices=styles)
@@ -1298,22 +1559,28 @@ with ui.navset_hidden(id="main"):
                             
                             elif dv_type == "Scatter plot":
 
-                                ui.input_selectize("scatter_ydata_selectize", "Y-data",
-                                                   choices=[""]+col_nbs)
-                                ui.input_selectize("scatter_xdata_selectize", "X-data",
-                                                   choices=[""]+columns)
-                                
-                                ui.input_selectize("scatter_size_data_selectize", "Size data",
-                                                   choices=[""]+col_nums,
-                                                   remove_button=True, options={"placeholder": "None"})
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Y-data")
+                                    ui.input_selectize("scatter_ydata_selectize", "",
+                                                       choices=[""]+col_nbs)
+                                    inline_label("X-data")
+                                    ui.input_selectize("scatter_xdata_selectize", "",
+                                                       choices=[""]+columns, remove_button=True,
+                                                       options={"placeholder": "Row index"})
+                                    inline_label("Size")
+                                    ui.input_selectize("scatter_size_data_selectize", "",
+                                                       choices=[""]+col_nums,
+                                                       remove_button=True, options={"placeholder": "None"})
                                 with ui.layout_columns(col_widths=(3, 9)):
                                     inline_label('Scale', pt="22px")
                                     ui.input_slider("scatter_size_scale_slider", "",
                                                     min=0.1, max=2, value=1, step=0.05)
                                 
-                                ui.input_selectize("scatter_color_data_selectize", "Color data",
-                                                   choices=[""]+columns,
-                                                   remove_button=True, options={"placeholder": "None"})
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Hues")
+                                    ui.input_selectize("scatter_color_data_selectize", "",
+                                                       choices=[""]+columns,
+                                                       remove_button=True, options={"placeholder": "None"})
                                 
                                 with ui.navset_hidden(id="scatter_conditional_ui"):
                                     with ui.nav_panel(None, value="scatter_single_case"):
@@ -1344,7 +1611,7 @@ with ui.navset_hidden(id="main"):
                                         with ui.layout_columns(col_widths=(3, 9)):
                                             inline_label("Colormap")
                                             ui.input_selectize("scatter_cmap_selectize", "",
-                                                               choices=[""], selected="")
+                                                               choices=num_cmaps, selected="viridis")
                                     
                                 with ui.layout_columns(col_widths=(3, 9)):
                                     inline_label("Opacity", pt="22px")
@@ -1367,14 +1634,113 @@ with ui.navset_hidden(id="main"):
                                         else:
                                             cmaps, cmap = num_cmaps, "viridis"
                                         ui.update_selectize("scatter_cmap_selectize", choices=cmaps, selected=cmap)
+                            
+                            elif dv_type == "Regression plot":
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Y-data")
+                                    ui.input_selectize("regplot_ydata_selectize", "",
+                                                       choices=[""]+col_nbs)
+                                    inline_label("X-data")
+                                    ui.input_selectize("regplot_xdata_selectize", "",
+                                                       choices=[""]+col_nbs)
+                                
+                                    choices = [""] + discrete_labels(data, max_cats=8)
+                                    inline_label("Hues")
+                                    ui.input_selectize("regplot_color_data_selectize", "",
+                                                       choices=choices,
+                                                       remove_button=True, options={"placeholder": "None"})
+                                
+                                with ui.navset_hidden(id="regplot_conditional_ui"):
+                                    with ui.nav_panel(None, value="regplot_single_case"):
+                                        with ui.layout_columns(col_widths=(3, 9)):
+                                            inline_label("Palette", pt="8px")
+                                            with ui.layout_columns(col_widths=(6, 6), gap="2px"):
+
+                                                @render.ui
+                                                def regplot_hexcolor():
+                                                    c = color.get()
+                                                    return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
+
+                                                @render_bokeh(height="36px", width="100%", fill=True)
+                                                def regplot_color_picker():
+                                                    picker = ColorPicker(
+                                                        title="",
+                                                        color='#1f77b4',
+                                                        min_width=95
+                                                    )
+                                        
+                                                    def update_regplot_picker_color(attr, old, new):
+                                                        color.set(new)
+
+                                                    picker.on_change('color', update_regplot_picker_color)
+                                                    return picker
                                     
+                                    with ui.nav_panel(None, value="regplot_multiple_case"):
+                                        with ui.layout_columns(col_widths=(3, 9)):
+                                            inline_label("Colormap")
+                                            ui.input_selectize("regplot_cmap_selectize", "",
+                                                               choices=num_cmaps, selected="viridis")
+                                
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Opacity", pt="22px")
+                                    ui.input_slider("regplot_alpha_slider", "",
+                                                    min=0.2, max=1.0, value=1.0, step=0.05)
+
+                                with ui.layout_columns(col_widths=(6, 6)):
+                                    inline_label("Confidence level")
+                                    ui.input_selectize("regplot_ci_level_selectize", "",
+                                                       choices=["None", "80%", "85%", "90%", "95%", "99%"])
+                                    inline_label("Transformation")
+                                    ui.input_selectize("regplot_transform_selectize", "",
+                                                       choices=["None", "Polynomial"])
+
+                                @render.express(inline=True)
+                                def regplot_poly_degree_ui():
+                                    if input.regplot_transform_selectize() == "Polynomial":
+                                        with ui.layout_columns(col_widths=(6, 6)):
+                                            inline_label("Polynomial order")
+                                            ui.input_numeric("regplot_poly_order_numeric", "", 
+                                                             min=2, max=10, step=1, value=2)
+
+                                @reactive.effect
+                                @reactive.event(input.regplot_ydata_selectize)
+                                def regplot_logistic_choices_update():
+                                    node = node_input.get()
+                                    data = node["data"]
+                                    label = to_selected_columns(input.regplot_ydata_selectize(), data)
+                                    if label != "":
+                                        yvalue = data[label]
+                                        choices = ["None", "Polynomial"]
+                                        if (yvalue > 0).all():
+                                            choices.append("Log")
+                                        if is_bool_dtype(yvalue) or ((yvalue*(1-yvalue) >= 0).all()):
+                                            choices.append("Logistic")
+                                        ui.update_selectize("regplot_transform_selectize", 
+                                                            choices=choices)
+
+                                @reactive.effect
+                                @reactive.event(input.regplot_color_data_selectize)
+                                def regplot_color_data_selectize_update_ui():
+
+                                    color_data = input.regplot_color_data_selectize()
+
+                                    if color_data == "":
+                                        ui.update_navs("regplot_conditional_ui", selected="regplot_single_case")
+                                    else:
+                                        ui.update_navs("regplot_conditional_ui", selected="regplot_multiple_case")
+                                        cmaps, cmap = cat_cmaps, "tab10"
+                                        ui.update_selectize("regplot_cmap_selectize", choices=cmaps, selected=cmap)
+
                             elif dv_type == "Filled areas":
 
                                 ui.input_selectize("filled_areas_ydata_selectize", "Y-data",
                                                    choices=[""] + col_nums, multiple=True, remove_button=True)
-                                ui.input_selectize("filled_areas_xdata_selectize", "X-data",
-                                                   choices=[""] + columns, remove_button=True,
-                                                   options={"placeholder": "Row index"})
+                                
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("X-data")
+                                    ui.input_selectize("filled_areas_xdata_selectize", "",
+                                                       choices=[""] + columns, remove_button=True,
+                                                       options={"placeholder": "Row index"})
 
                                 with ui.layout_columns(col_widths=(3, 9)):
                                     inline_label("Style")
@@ -1388,8 +1754,59 @@ with ui.navset_hidden(id="main"):
                                     inline_label("Opacity", pt="22px")
                                     ui.input_slider("filled_areas_alpha_slider", "",
                                                     min=0.2, max=1, step=0.05, value=1)
+                            
+                            if dv_type == "ACF and PACF":
+                                ui.input_selectize("ac_plot_selectize", "Columns",
+                                                   choices=[""] + col_nums,
+                                                   multiple=True, remove_button=True,
+                                                   options={"maxItems": 8})
+                                max_lags = min([data.shape[0] // 2, 100])
+                                with ui.layout_columns(col_widths=(6, 6)):
+                                    ui.input_selectize("ac_plot_type_selectize", "Plot type",
+                                                       choices=["ACF", "PACF"])
+                                    ui.input_selectize("ac_plot_method_selectize", "Method", choices=[""])
+                                    ui.input_numeric("ac_plot_lags_numeric", "Lags",
+                                                     min=4, max=max_lags, value=27, step=1)
+                                    ui.input_selectize("ac_plot_ci_selectize", "Confidence level",
+                                                       choices=["80%", "85%", "90%", "95%", "99%"],
+                                                       selected="95%")
 
-                        if dv_type != "Pair plot":
+                                with ui.layout_columns(col_widths=(3, 9)):
+                                    inline_label("Palette", pt="8px")
+                                    with ui.layout_columns(col_widths=(6, 6), gap="2px"):
+                                
+                                        @render.ui
+                                        def ac_plot_hexcolor():
+                                            c = color.get()
+                                            return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
+
+                                        @render_bokeh(height="36px", width="100%", fill=True)
+                                        def ac_plot_color_picker():
+                                            picker = ColorPicker(
+                                                title="",
+                                                color='#1f77b4',
+                                                min_width=95
+                                            )
+                                        
+                                            def update_ac_plot_picker_color(attr, old, new):
+                                                color.set(new)
+
+                                            picker.on_change('color', update_ac_plot_picker_color)
+                                            return picker
+
+                                @reactive.effect
+                                @reactive.event(input.ac_plot_type_selectize)
+                                def ac_plot_method_choices_update():
+
+                                    if input.ac_plot_type_selectize() == "ACF":
+                                        choices = ["Not adjusted", "Adjusted"]
+                                    else:
+                                        choices = ["ywunbiased", "yw", "ywm", "ols", "ols-inefficient",
+                                                   "ols-adjusted", "ld", "ldb", "burg"]
+                                    ui.update_selectize("ac_plot_method_selectize",
+                                                        choices=choices, selected=choices[0])
+
+                        if dv_type not in ["Pair plot", "ACF and PACF"]:
                             with ui.nav_panel("Labels"):
                                 ui.input_text("fig_title_text", "Title")
                                 with ui.layout_columns(col_widths=(6, 6)):
@@ -1406,7 +1823,7 @@ with ui.navset_hidden(id="main"):
                                                        choices=list(range(6, 21)), selected=10)
                                     ui.input_numeric("fig_xtick_rotate_numeric", "Rotate X-ticks:",
                                                      min=-90, max=90, step=10, value=0)
-                        
+
                         with ui.nav_panel("Figure"):
 
                             ui.input_switch("fig_grid_switch", "Grid")
@@ -1419,7 +1836,7 @@ with ui.navset_hidden(id="main"):
                                                 value=640, min=150, max=1500, step=5)
                                 inline_label('Height', '22px')
                                 ui.input_slider("fig_height_slider", "",
-                                                value=480, min=150, max=900, step=5)
+                                                value=480, min=150, max=1500, step=5)
                     
                     hr(0)
                     ui.input_text_area("dv_markdown_text_area", "Markdown",
@@ -1444,12 +1861,14 @@ with ui.navset_hidden(id="main"):
                     lines = dv_memory.get()
                     lines.append(dict(ydata=input.line_ydata_selectize(),
                                       xdata=input.line_xdata_selectize(),
+                                      margin=input.line_margin_data_selectize(),
                                       color=color.get(),
                                       style=input.line_style_selectize(),
                                       marker=input.line_marker_selectize(),
                                       width=input.line_width_slider(),
                                       scale=input.line_marker_scale_slider()))
 
+                    ui.update_selectize("line_margin_data_selectize", selected="")
                     ui.update_selectize("line_ydata_selectize", selected="")
                     ui.update_selectize("line_style_selectize", selected="solid")
                     ui.update_selectize("line_marker_selectize", selected="none")
@@ -1545,8 +1964,8 @@ with ui.navset_hidden(id="main"):
                 init_color.set(default_colors[0])
 
     with ui.nav_panel(None, value="mds_panel"):
-        with ui.layout_sidebar(height="1020px"):
-            with ui.sidebar(bg='#f8f8f8', width='350px', height='1020px'):
+        with ui.layout_sidebar(height="900px"):
+            with ui.sidebar(bg='#f8f8f8', width='350px', height='900px'):
                 
                 @render.express
                 def mds_panel_ui():
@@ -1566,7 +1985,7 @@ with ui.navset_hidden(id="main"):
                     ui.markdown(f"#### {md_type}")
                     with ui.navset_hidden(id="model_page_navset"):
                         with ui.nav_panel("model_page1"):
-                            if md_type == "Sklearn model":
+                            if md_type == "Sklearn models":
                                 ui.markdown("**Step 1: specify variables**")
 
                             ui.input_selectize("model_dependent_selectize", "Dependent variable",
@@ -1592,16 +2011,62 @@ with ui.navset_hidden(id="main"):
                                     if input.statsmodels_formula_text().strip() != "":
                                         ui.input_task_button("statsmodels_fitting_button", "Fit model",
                                                              label_busy="Running...", width="100%")
+                            
+                            @reactive.effect
+                            @reactive.event(input.model_dependent_selectize)
+                            def model_type_update():
+
+                                mds_dict = mds.get()
+                                predicted = input.model_dependent_selectize()
+                                if predicted != "":
+                                    y = data[predicted]
+                                    if (not is_numeric_dtype(y)) or is_bool_dtype(y):
+                                        mds_dict["type"] = "Classifier"
+                                    else:
+                                        mds_dict["type"] = "Regressor"
 
                         with ui.nav_panel("model_page2"):
                             ui.markdown("**Step 2: model pipeline**")
-                            with ui.layout_columns(col_widths=(3, 9)):
+                            
+                            @render.express
+                            def sklearn_predicted_var_ui():
+                                mds_dict = mds.get()
+                                pred_type = mds_dict["type"]
+                                if pred_type == "Classifier":
+                                    ind_col = input.model_independent_selectize()
+                                    nc = len(set(ind_col).intersection(set(col_cats) - set(col_nbs)))
+                                    nc += len(input.model_numeric_cats_selectize())
+
+                                    os_choices = ["Not applied", "RandomOverSampler", "SMOTE"]
+                                    if nc == 0:
+                                        os_choices.append("ADASYN")
+                                    #with ui.layout_columns(col_widths=(4, 8)):
+                                    #    inline_label("Over-sampling")
+                                    ui.input_selectize("sklearn_over_sampling_selectize", "Over-sampling",
+                                                       choices=os_choices)
+                                else:
+                                    ui.input_switch("sklearn_predicted_log_switch",
+                                                    "Log transformation of target")
+
+                            @render.express
+                            def sklearn_over_sampling_k_neighbors_ui():
+                                mds_dict = mds.get()
+                                pred_type = mds_dict["type"]
+                                if pred_type == "Classifier":
+                                    if input.sklearn_over_sampling_selectize() in ["SMOTE", "ADASYN"]:
+                                        with ui.layout_columns(col_widths=(4, 8)):
+                                            inline_label("Neighbors")
+                                            ui.input_text("sklearn_over_sampling_k_neighbors", "",
+                                                          placeholder="5")
+
+                            with ui.layout_columns(col_widths=(4, 8)):
                                 inline_label("Scalilng")
                                 ui.input_selectize("sklearn_scaling_selectize", "",
                                                    choices=["Not applied", "StandardScaler", "Normalizer"])
                                 inline_label("PCA")
-                                ui.input_text("skleanr_pca_numbers", "", placeholder="Not applied")
-                            
+                                ui.input_text("sklearn_pca_numbers", "", placeholder="Not applied")
+
+                            hr()
                             ui.input_selectize("sklearn_model_selectize", "Model selection",
                                                choices=[""])
                             
@@ -1636,12 +2101,22 @@ with ui.navset_hidden(id="main"):
                                 if input.sklearn_test_set_switch():
                                     ui.input_numeric("sklearn_test_ratio_numeric", "",
                                                      min=0.05, max=0.5, step=0.05, value=0.25)
+                            
+                            ui.input_task_button("sklearn_fitting_button", "Fit model",
+                                                 label_busy="Running...", width="100%")
 
+                        with ui.nav_panel("model_page4"):
+                            ui.markdown("**Step 4: save results**")
                             ui.input_text("sklearn_output_text", "Output name",
                                           placeholder="Key in a variable name...")
                             
+                            @render.express
+                            def sklearn_regression_out_ui():
+                                mds_dict = mds.get()
+                                if mds_dict["type"] == "Regressor":
+                                    ui.input_switch("sklearn_residual_switch", "Include residuals")
+                            
                             ui.input_checkbox_group("sklearn_outputs_checkbox", " ", choices=[])
-
 
                             @render.express
                             def sklearn_class_output_ui():
@@ -1679,17 +2154,20 @@ with ui.navset_hidden(id="main"):
                                     choices = ["Confusion matrix"]
                                 else:
                                     choices = ["Confusion matrix",
-                                              "Receiver-operating characteristic",
-                                              "Precision-recall", ]
+                                               "Receiver-operating characteristic",
+                                               "Precision-recall", ]
                                 ui.update_checkbox_group("sklearn_outputs_checkbox", choices=choices)
 
-                            ui.input_task_button("sklearn_fitting_button", "Fit model",
-                                                 label_busy="Running...", width="100%")
-
-                    if md_type == "Sklearn model":
+                    if md_type == "Sklearn models":
                         with ui.layout_columns(col_widths=(5, -2, 5)):
                             ui.input_action_button("sklearn_page_back_button", "Back", disabled=True)
                             ui.input_action_button("sklearn_page_next_button", "Next", disabled=True)
+
+                #ui.input_action_button("md_debug", "Debug")
+                #@render.code
+                #@reactive.event(input.md_debug)
+                #def md_debug_display():
+                #    return str(mds.get()["source"])
 
                 @reactive.effect
                 @reactive.event(input.model_dependent_selectize, ignore_init=True)
@@ -1756,6 +2234,8 @@ with ui.navset_hidden(id="main"):
                         disabled = predicted == "" or len(predictors) == 0
                     elif page == 2:
                         disabled = input.sklearn_model_selectize() == ""
+                    elif page == 3:
+                        disabled = len(md_memory.get()) == 0
                     else:
                         disabled = True
                     ui.update_action_button("sklearn_page_next_button", disabled=disabled)
@@ -1860,24 +2340,27 @@ with ui.navset_hidden(id="main"):
                         f"{eval('table', sklearn_ns)}\n\n"
                         f"Cross-validation score: {eval('score', sklearn_ns).mean():.4f}"
                         f"{test_result}"
-                    )            
+                    )        
                 except Exception as err:
                     result = err
 
                 if isinstance(result, str):
-                    variables = ["model", "cv", "yhat_cv"]
-                    if mds_dict["type"] == "Classifier":
-                        if input.sklearn_class_selectize() != "":
-                            variables.extend(["threshold", "y_target", "index"])
+                    variables = ["model", "cv"] 
+                    if mds_dict["type"] == "Regressor":
+                        variables.append("yhat_cv")
+                    else:
                         variables.append("proba_cv")
+                    
                     if test_set:
-                        variables.extend(["x_train", "x_test", "y_train", "y_test", "yhat_test"])
-                    if mds_dict["type"] == "Classifier" and test_set:
-                        variables.extend(["proba_test"])
+                        variables.extend(["x_train", "x_test", "y_train", "y_test"])
+                        if mds_dict["type"] == "Regressor":
+                            variables.append("yhat_test")
+                        else:
+                            variables.append("proba_test")
                 
                     for var in variables:
                         mds_dict["memory"][var] = eval(var, sklearn_ns)
-                
+
                 mds_dict["results"] = result
                 md_memory.set(dict(result=result))
             
@@ -1943,17 +2426,21 @@ with ui.navset_hidden(id="main"):
                                 f"{'\n'.join(imports)}\n\n"
                                 f"{code}"
                             )
-                    elif md_type == "Sklearn model":
+                    elif md_type == "Sklearn models":
                         @render.code
                         def sklearn_model_code_display():
                             page = md_page.get()
                             imports = source["imports"][page]
                             code = source["code"][page]
-                            if page == 3:
+                            if page == 4:
+                                code_segments = [] if code == "" else [code]
                                 for out in mds_dict["outputs"]:
                                     if out["code"] != "":
                                         imports += out["imports"]
-                                        code += f"\n\n{out['code']}"
+                                        #code += f"\n\n{out['code']}"
+                                        code_segments.append(out["code"])
+                                
+                                code = "\n\n".join(code_segments)
 
                             imports = list(set(imports))
                             imports.sort(reverse=True)
@@ -2073,7 +2560,8 @@ with ui.navset_hidden(id="main"):
                                         return result
                                 else:
                                     ui_block(result, "danger")
-    
+
+                        elif page == 4:
                             @render.express
                             def sklearn_plots_display():
                                 memory = md_memory.get()
@@ -2117,15 +2605,18 @@ with ui.navset_hidden(id="main"):
                                             for idx, out in enumerate(outputs):
                                                 if out["type"] == 'plot':
                                                     sklearn_ns = {}
-                                                    current_imports = out["imports"]
+                                                    define_imports = mds.get()["source"]["imports"][4]
+                                                    current_imports = define_imports + out["imports"]
                                                     current_imports.extend(["import pandas as pd",
                                                                             "import numpy as np"])
-                                                    current_code = out["code"]
+                                                    define_code = mds.get()["source"]["code"][4]
+                                                    current_code = f"{define_code}\n" + out["code"]
                                                     if len(current_imports) > 0:
                                                         exec("\n".join(current_imports), sklearn_ns)
                                                     for key, value in mds_dict["memory"].items():
                                                         #exec(f"{key} = value")
                                                         sklearn_ns[key] = value
+                                                    
                                                     exec("\n".join(current_code.split("\n")[:-1]), sklearn_ns)
                                                     out["fig"] = eval("fig", sklearn_ns)
                                                     sklearn_plot_display(idx)
@@ -2186,16 +2677,22 @@ with ui.navset_hidden(id="main"):
                     model_view = dict(name=f"{md_type}: {method}", 
                                       results=mds_dict["results"])
                     source = mds_dict["source"]
+                    define_imports = []
+                    define_code = ""
                 else:
+                    source = mds_dict["source"]
                     model = input.sklearn_model_selectize()
                     model_view = dict(name=f"{md_type}: {model}", 
                                       results=mds_dict["results"])
 
-                    code = "\n\n".join(mds_dict["source"]["code"].values())
-                    imports_dict = mds_dict["source"]["imports"]
-                    imports = imports_dict[1] + imports_dict[2] + imports_dict[3]
-                    markdown = mds_dict["source"]["markdown"]
+                    code = "\n\n".join([seg for seg in source["code"].values() if seg != ""])
+                    imports_dict = source["imports"]
+                    imports = imports_dict[1] + imports_dict[2] + imports_dict[3] + imports_dict[4]
+                    markdown = source["markdown"]
                     source = dict(code=code, imports=imports, markdown=markdown)
+
+                    define_imports = mds_dict["source"]["imports"][4]
+                    define_code = mds_dict["source"]["code"][4]
                     
                 node_view.set(model_view)
                 model_info = dict(type=md_type, data=data, view=model_view, source=source)
@@ -2208,6 +2705,11 @@ with ui.navset_hidden(id="main"):
                     #exec(f"{key} = value")
                     sklearn_ns[key] = value
                 sklearn_ns[name] = data
+
+                if define_imports:
+                    exec("\n".join(define_imports), sklearn_ns)
+                if define_code != "":
+                    exec(define_code, sklearn_ns)
 
                 output_nodes = []
                 for out in mds_dict["outputs"]:

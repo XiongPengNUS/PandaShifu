@@ -56,7 +56,10 @@ def to_selected_columns(columns, data):
         if isinstance(columns, str):
             return "" if columns == "" else eval(columns) 
         else:
-            return [eval(col) for col in columns]
+            #fprint([col for col in columns if col in data.columns], data.columns)
+            
+            return [eval(col) for col in columns
+                    if col in to_column_choices(data.columns)]
     else:
         if isinstance(columns, str):
             return columns
@@ -132,7 +135,34 @@ def operation_source(op, name, data, ui_input, memory):
     imports = []
 
     code = f"{left}{name}{right}{result}"
-    if op == "Select columns":
+    if op == "Value Counts Operations":
+        columns = to_selected_columns(ui_input.counts_ops_selectize(), data)
+        unpack = to_selected_columns(ui_input.counts_ops_unstack_selectize(), data)
+
+        normalize = ui_input.counts_ops_normalize_switch()
+
+        kwargs = []
+        if len(columns) > 0:
+            unpack_code = f".unstack(level={unpack.__repr__()})" if len(unpack) > 0 else ".to_frame()"
+            if normalize:
+                kwargs.append(f"normalize={normalize}")
+            if len(unpack) == 0:
+                sort = ui_input.counts_ops_sort_switch()
+                if not sort:
+                    kwargs.append("sort=False")
+                else:
+                    descending = ui_input.counts_ops_sort_descending_switch()
+                    if not descending:
+                        kwargs.append("ascending=True")
+            column_code = f"{columns[0].__repr__()}" if len(columns) == 1 else f"{columns}"
+            reset_code = ".reset_index()" if ui_input.counts_ops_reset_switch() else ""
+            code = (
+                f"columns = {column_code}\n"
+                f"{left}{name}[columns].value_counts({', '.join(kwargs)}){unpack_code}{reset_code}"
+                f"{result}"
+            )
+
+    elif op == "Select columns":
         columns = to_selected_columns(ui_input.select_columns_selectize(), data)
         if columns != data.columns.tolist():
             code = (
@@ -141,7 +171,7 @@ def operation_source(op, name, data, ui_input, memory):
                 f"{result}"
             )
 
-    elif op == "Filter rows":
+    elif op == "Boolean conditions":
         current_column = ui_input.filter_column_selectize()
         current_operator = ui_input.filter_operator_selectize()
         current_value_str = ui_input.filter_value_text().strip()
@@ -175,12 +205,25 @@ def operation_source(op, name, data, ui_input, memory):
             cond_lines.append(cond_code)
         
         if len(cond_lines) > 0:
-            rows_code = " & ".join([f"cond{i}"for i in range(1, 1 + len(cond_lines))])
-            reset_code = ".reset_index(drop=True)" if ui_input.filter_reset_switch() else ""
-            code = (
-                f"{'\n'.join(cond_lines)}\n"
-                f"{left}{name}.loc[{rows_code}]{reset_code}{result}"
-            )
+            conds_code = " & ".join([f"cond{i}"for i in range(1, 1 + len(cond_lines))])
+            if ui_input.filter_select_rows_switch():
+                reset_code = ".reset_index(drop=True)" if ui_input.filter_reset_switch() else ""
+                code = (
+                    f"{'\n'.join(cond_lines)}\n"
+                    f"{left}{name}.loc[{conds_code}]{reset_code}{result}"
+                )
+            else:
+                to_column = ui_input.filter_condition_column_text().strip()
+                if to_column != "":
+                    to_column_repr = to_column.__repr__()
+                    copy_name = f"{name}_copy" if left == "" else f"{name_out}"
+                    copy_code = f"{copy_name} = {name}.copy()" if left == "" else f"{left}{name}.copy()"
+                    code = (
+                        f"{'\n'.join(cond_lines)}\n"
+                        f"{copy_code}\n"
+                        f"{copy_name}[{to_column_repr}] = {conds_code}\n"
+                        f"{copy_name}"
+                    )
 
     elif op == "Sort rows":
         columns = to_selected_columns(ui_input.sort_columns_selectize(), data)
@@ -290,31 +333,75 @@ def operation_source(op, name, data, ui_input, memory):
     elif op == "Time trend":
         columns = to_selected_columns(ui_input.time_trend_columns_selectize(), data)
         transform = ui_input.time_trend_transform_selectize()
-        step = ui_input.time_trend_step_numeric()
+        #step = ui_input.time_trend_step_numeric()
+        steps_str = str_to_numstr(ui_input.time_trend_steps_text())
+        if steps_str is None:
+            steps_str = '[1]'
+        steps = eval(steps_str) if isinstance(steps_str, str) else [1]
+        #if isinstance(steps, np.ndarray):
+        #    steps = steps.tolist()
+        #else:
+        #    steps = list(steps)
+        #is_int = [isinstance(s, int) for s in steps]
+        #if not all(is_int):
+        #    raise TypeError("Step values must be integers.")
 
         copy_name = f"{name}_copy" if left == "" else name_out
         copy_code = f"{copy_name} = {name}.copy()" if left == "" else f"{left}{name}.copy()"
         
         if len(columns) > 0 and transform != "":
             if transform == "change":
-                expr = f"{copy_name}[from_cols].diff({step})"
+                expr = f"{copy_name}[from_cols].diff(step)"
             elif transform == "relative change":
-                expr = f"{copy_name}[from_cols].pct_change({step})"
+                expr = f"{copy_name}[from_cols].pct_change(step)"
             elif transform == "log change":
-                expr = f"np.log({copy_name}[from_cols]).diff({step})"
+                expr = f"np.log({copy_name}[from_cols]).diff(step)"
+                imports.append("import numpy as np")
             elif transform == "moving average":
-                expr = f"{copy_name}[from_cols].rolling({step}).mean()"
+                expr = f"{copy_name}[from_cols].rolling(step).mean()"
             else:
                 expr = "None"
-            step_str = f"{step}-step " if step != 1 or transform == "moving average" else ""
-            code = (
-                f"from_cols = {columns.__repr__()}\n"
-                f"to_cols = [f'{step_str}{transform} of {{c}}' for c in from_cols]\n"
-                f"{copy_code}\n"
-                f"{copy_name}[to_cols] = {expr}\n"
-                f"{copy_name}"
-            )
+            if len(steps) == 1:
+                step = steps[0]
+                step_str = f"{step}-step " if step != 1 or transform == "moving average" else ""
+                code = (
+                    f"step = {step}\n"
+                    f"from_cols = {columns.__repr__()}\n"
+                    f"to_cols = [f'{step_str}{transform} of {{c}}' for c in from_cols]\n"
+                    f"{copy_code}\n"
+                    f"{copy_name}[to_cols] = {expr}\n"
+                    f"{copy_name}"
+                )
+            else:
+                step_str = f"{{step}}-step "
+                code = (
+                    f"from_cols = {columns.__repr__()}\n"
+                    f"{copy_code}\n"
+                    f"for step in {steps_str}:\n"
+                    f"    to_cols = [f'{step_str}{transform} of {{c}}' for c in from_cols]\n"
+                    f"    {copy_name}[to_cols] = {expr}\n"
+                    f"{copy_name}"
+                )
     
+    elif op == "ANOVA":
+        formula = ui_input.anova_formula_text()
+        if formula != "":
+            anova_type = ui_input.anova_type_selectize()
+            type_code = f", typ={anova_type.__repr__()}" if anova_type != "" else ""
+            anova_test = ui_input.anova_test_selectize()
+            test_code = f", test={anova_test.__repr__()}" if anova_test not in ["", "F"] else ""
+            anova_code = f"sm.stats.anova_lm(model{type_code}{test_code})"
+            code = (
+                f"model = smf.ols({formula.__repr__()}, data={name}).fit()\n"
+                f"anova_dict = {anova_code}.to_dict()\n"
+                f"anova_dict['df'] = {{key: int(value) for key, value in anova_dict['df'].items()}}\n"
+                f"{left}pd.DataFrame(anova_dict)"
+                f"{result}"
+            )
+            imports.extend(["import pandas as pd",
+                            "import statsmodels.formula.api as smf",
+                            "import statsmodels.api as sm"])
+
     elif op == "Clustering":
         method = ui_input.clustering_method_selectize()
         columns = to_selected_columns(ui_input.clustering_columns_selectize(), data)
@@ -359,6 +446,69 @@ def operation_source(op, name, data, ui_input, memory):
                             "from sklearn import cluster",
                             "import pandas as pd"])
     
+    elif op == "Variance inflation factor":
+        columns = to_selected_columns(ui_input.vif_features_selectize(), data)
+        intercept = ui_input.vif_add_constant_switch()
+        reset = ui_input.vif_reset_switch()
+        if len(columns) > 0:
+            features = data[columns]
+            is_num = features.apply(is_numeric_dtype, axis=0).values
+            intercept_code = f"features['constant'] = 1\n" if intercept else ""
+            reset_code = f".reset_index(names='features')" if reset else ""
+            code = (
+                f"columns = {columns}\n"
+                f"features = {name}[columns].astype(float)\n"
+                f"{intercept_code}\n"
+                f"vif_list = [variance_inflation_factor(features.values, i) for i in range(len(columns))]\n"
+                f"{left}pd.DataFrame(vif_list, index=columns, columns=['VIF']){reset_code}"
+            )
+            imports.extend(["from statsmodels.stats.outliers_influence import variance_inflation_factor",
+                            "import pandas as pd"])
+    
+    elif op == "Over sampling":
+        target = to_selected_columns(ui_input.over_sampling_target_selectize(), data)
+        features = to_selected_columns(ui_input.over_sampling_features_selectize(), data)
+        method = ui_input.over_sampling_method_selectize()
+
+        if target != "" and len(features) > 0 and method != "":
+            kwargs = []
+            if method == "Random over-sampling":
+                os_model = "RandomOverSampler"
+            elif method == "SMOTE":
+                xdata = data[features]
+                is_num = xdata.apply(is_numeric_dtype, axis=0).values
+                if not any(is_num):
+                    os_model = "SMOTEN"
+                elif all(is_num):
+                    os_model = "SMOTE"
+                else:
+                    os_model = "SMOTENC"
+                    cat_list = np.array(features)[~is_num].tolist()
+                    kwargs.append(f"categorical_features={cat_list}")  
+            else:
+                os_model = method
+            
+            strategy = ui_input.over_sampling_strategy_selectize()
+            if strategy != "auto" and strategy != "":
+                kwargs.append(f"strategy={strategy.__repr__()}")
+            
+            k_neighbors = ui_input.over_sampling_k_neighbors_numeric()
+            if method != "Random over-sampling" and k_neighbors != 5:
+                kwargs.append(f"k_neighbors={k_neighbors}")
+            
+            kwargs.append("random_state=0")
+
+            code = (
+                f"y = {name}[{target.__repr__()}]\n"
+                f"x = data[{features}]\n"
+                f"os = {os_model}({', '.join(kwargs)})\n"
+                f"{left}pd.concat(os.fit_resample(x, y), axis=1)"
+                f"{result}"
+            )
+            
+            imports.extend([f"from imblearn.over_sampling import {os_model}",
+                            "import pandas as pd"])
+    
     elif op == "Add columns":
         exp_type = ui_input.add_cols_type_selectize()
         from_columns = to_selected_columns(ui_input.add_cols_from_columns_selectize(), data)
@@ -375,7 +525,8 @@ def operation_source(op, name, data, ui_input, memory):
         if from_columns != "" and to_columns != "" and formula != "":
             prep_code = ""
             if exp_type == "Arithmetic expression":
-                expr = formula  
+                expr = formula
+                imports.append("import numpy as np")  
             elif exp_type == "Type conversion":
                 expr = f"{copy_name}[{from_columns}].astype({formula})"
             elif exp_type == "String operations":
@@ -433,7 +584,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
     width, height = ui_input.fig_width_slider()/100, ui_input.fig_height_slider()/100
     color_code = "" if color == "#1f77b4" else f", color={color.__repr__()}"
 
-    if dv == "Pair plot":
+    if dv in ["Pair plot", "ACF and PACF"]:
         fig_code = title_code = xlabel_code = ylabel_code = font_code = rotate_code = grid_code = ""
         legend_loc = ""
     else:
@@ -542,6 +693,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
         column = to_selected_columns(ui_input.boxplot_column_selectize(), data)
         group = to_selected_columns(ui_input.boxplot_group_by_selectize(), data)
         hue = to_selected_columns(ui_input.boxplot_hue_selectize(), data)
+        notch = ui_input.boxplot_notch_switch()
+        mean = ui_input.boxplot_mean_switch()
         direction = ui_input.boxplot_direction_selectize()
         cmap = ui_input.boxplot_grouped_cmap_selectize()
 
@@ -555,22 +708,54 @@ def visual_source(dv, name, data, ui_input, color, memory):
             data_code = f"data={name}{hdata_code}, {v}={column.__repr__()}"
             orient_code = ", orient='h'" if direction == "Horizontal" else ""
             
+            break_code = f"\n            "
+            notch_code = f", notch=True" if notch else ""
+            mean_prop_code = "meanprops=dict(marker='o', markerfacecolor='k', markeredgecolor='k', markersize=5)"
+            mean_code = f", showmeans=True, {break_code}{mean_prop_code}" if mean else ""
             hue_code = f", hue={hue.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            break_code = f"\n            "
             legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code})\n"
             if hue == "":
                 hue_code = cmap_code = break_code = legend_code = ""
             else:
                 color_code = ""
-
             alpha_code = f", boxprops=dict(alpha={ui_input.boxplot_alpha_slider()})"
             
             plot_code = (
-                f"sns.boxplot({data_code}{orient_code}{hue_code}, {break_code}"
+                f"sns.boxplot({data_code}{orient_code}{hue_code}{notch_code}{mean_code},{break_code}"
                 f"width={box_width}{color_code}{cmap_code}{alpha_code})\n"
                 f"{legend_code}"
             )
+
+    elif dv == "Probability plot":
+        column = to_selected_columns(ui_input.proba_plot_selectize(), data)
+        distr_str = ui_input.proba_plot_distri_selectize()
+        if column != "" and distr_str != "":
+            distr_map = {"Normal": "norm",
+                         "Exponential": "expon",
+                         "Uniform": "uniform"}
+            distr = distr_map[distr_str]
+            color_code = "" if color == "#1f77b4" else f", markerfacecolor={color.__repr__()}"
+            alpha = ui_input.proba_plot_alpha_slider()
+            alpha_code = f", alpha={alpha}" if alpha < 1 else ""
+            data_code = f"{name}[{column.__repr__()}]"
+            distr_code = "" if distr_str == "Normal" else f", dist={distr}"
+            if ui_input.proba_plot_standardize_switch():
+                sample_code = "sample = (sample - sample.mean()) / sample.std()\n"
+            else:
+                sample_code = ""
+            plot_code = (
+                f"sample = {data_code}\n"
+                f"{sample_code}"
+                f"sm.qqplot(sample{distr_code}, line='q',\n"
+                f"          markeredgecolor='none'{color_code}{alpha_code}, ax=fig.gca())\n"
+            )
+            if xlabel == "":
+                xlabel_code = "plt.xlabel('')\n"
+            if ylabel == "":
+                ylabel_code = "plt.ylabel('')\n"
+            imports.extend(["import statsmodels.api as sm",
+                            f"from scipy.stats import {distr}"])
 
     elif dv == "Pair plot":
         xcols = to_selected_columns(ui_input.pair_columns_selectize(), data)
@@ -617,6 +802,23 @@ def visual_source(dv, name, data, ui_input, color, memory):
             )
         else:
             plot_code = "fig = plt.figure()\n"
+    
+    elif dv == "Heat map":
+        columns = to_selected_columns(ui_input.heatmap_columns_selectize(), data)
+        cmap = ui_input.heatmap_colormap_selectize()
+        annot = ui_input.heatmap_annot_switch()
+        toptick = ui_input.heatmap_top_tick_switch()
+        
+        if columns != []:
+            data_code = f"{name}[{columns.__repr__()}]" if columns != data.columns.tolist() else name
+            annot_code = ", annot=True" if annot else ""
+            cmap_code = f", cmap={cmap.__repr__()}" if cmap != "" else ""
+            toptick_code = "\nfig.gca().xaxis.tick_top()" if toptick else ""
+            plot_code = (
+                f"sns.heatmap({data_code}{annot_code}{cmap_code}, ax=fig.gca())"
+                f"{toptick_code}\n"
+            )
+            imports.append("import seaborn as sns")
 
     elif dv == "Bar chart":
         current_ydata = ui_input.bar_ydata_selectize()
@@ -640,17 +842,38 @@ def visual_source(dv, name, data, ui_input, color, memory):
             bar_func = "barh" if ui_input.bar_direction_selectize() == 'Horizontal' else "bar"
             stacked_code = ", stacked=True" if ui_input.bar_mode_selectize() == "Stacked" else ""
 
-            legend_code = "" if len(ydata) <= 1 else f"plt.legend(loc={legend_loc.__repr__()}{font_code})\n"
-            hide_legend_code = "" if len(ydata) > 1 else ", legend=False"
+            if len(ydata) <= 1:
+                hide_legend_code = ", legend=False"
+                legend_code = ""
+            else:
+                hide_legend_code = ""
+                if list(data.columns.names) == [None]:
+                    legend_title_code = ""
+                else:
+                    names = ['-' if name is None else str(name) for name in data.columns.names]
+                    legend_title_code = f"title={(', '.join(names)).__repr__()}, "
+                legend_code = f"plt.legend({legend_title_code}loc={legend_loc.__repr__()}{font_code})\n"
 
             hide_xlabel_code = ", xlabel=''" if ui_input.fig_xlabel_text() == "" else ""
             hide_ylabel_code = ", ylabel=''" if ui_input.fig_ylabel_text() == "" else ""
             
             alpha = ui_input.bar_alpha_slider()
             alpha_code = "" if alpha == 1 else f", alpha={alpha}"
-            shift = " " *(len(name) + (bar_func == "barh"))
+            if ui_input.bar_sort_switch():
+                descending_code = ", ascending=False" if ui_input.bar_sort_descending_switch() else ""
+                sort_by = to_selected_columns(ui_input.bar_sort_by_selectize(), data)
+                if sort_by == "":
+                    sort_code = f"sorted = {name}.sort_index({descending_code.replace(', ', '')})\n"
+                else:
+                    sort_code = f"sorted = {name}.sort_values(by={sort_by.__repr__()}{descending_code})\n"
+                name_sorted = f"sorted"
+            else:
+                sort_code = ""
+                name_sorted = name
+            shift = " " *(len(name_sorted) + (bar_func == "barh"))
             plot_code = (
-                f"{name}.plot.{bar_func}({xdata_code}y={ydata.__repr__()}, "
+                f"{sort_code}"
+                f"{name_sorted}.plot.{bar_func}({xdata_code}y={ydata.__repr__()}, "
                 f"color={bar_colors.__repr__()}{alpha_code},\n"
                 f"{shift}          width={bar_width}{stacked_code}"
                 f"{hide_xlabel_code}{hide_ylabel_code}{hide_legend_code}, ax=fig.gca())\n"
@@ -665,9 +888,11 @@ def visual_source(dv, name, data, ui_input, color, memory):
 
         lines = memory.copy()
         ydata = ui_input.line_ydata_selectize()
+        margin = ui_input.line_margin_data_selectize()
         if ydata != "":
             lines.append(dict(xdata=ui_input.line_xdata_selectize(),
                               ydata=ydata,
+                              margin=margin,
                               color=color,
                               style=ui_input.line_style_selectize(),
                               marker=ui_input.line_marker_selectize(),
@@ -690,9 +915,29 @@ def visual_source(dv, name, data, ui_input, color, memory):
             scale = 3**(line["scale"] - 1)
             scale_code = "" if scale == 1 else f", markersize={6*scale:.3f}"
             label_str = f"{line['ydata']}"
+
+            if len(line["margin"]) > 0:
+                if len(line["margin"]) == 1:
+                    margin_data = to_selected_columns(line['margin'][0], data)
+                    y1_code = y2_code = f"{name}[{margin_data.__repr__()}]"
+                elif len(line["margin"]) == 2:
+                    margin_data1 = to_selected_columns(line['margin'][0], data)
+                    margin_data2 = to_selected_columns(line['margin'][1], data)
+                    y1_code = f"{name}[{margin_data1.__repr__()}]"
+                    y2_code = f"{name}[{margin_data2.__repr__()}]"
+                margin_xdata_code = xdata_code if xdata != "" else f"{name}.index, " 
+                margin_code = (
+                    f"\nplt.fill_between({margin_xdata_code}"
+                    f"{ydata_code}-{y1_code}, {ydata_code}+{y2_code},\n"
+                    f"                 color={line['color'].__repr__()}, alpha=0.4)"
+                )
+            else:
+                margin_code = ""
+
             each_code = (
                 f"plt.plot({xdata_code}{ydata_code}{color_code},\n"
                 f"         {width_code}{style_code}{marker_code}{scale_code}, label={label_str.__repr__()})"
+                f"{margin_code}"
             )
             line_code.append(each_code)
 
@@ -707,10 +952,10 @@ def visual_source(dv, name, data, ui_input, color, memory):
         ydata = to_selected_columns(ui_input.scatter_ydata_selectize(), data)
         color_data = ui_input.scatter_color_data_selectize()
 
-        if xdata != "" and ydata != "":
+        if ydata != "":
             each_code = "_each" if color_data != "" and color_data in col_cats else ""
 
-            xdata_code = f"{name}{each_code}[{xdata.__repr__()}]"
+            xdata_code = f"{name}{each_code}[{xdata.__repr__()}]" if xdata != "" else f"{name}{each_code}.index"
             ydata_code = f"{name}{each_code}[{ydata.__repr__()}]"
             
             size_data = to_selected_columns(ui_input.scatter_size_data_selectize(), data)
@@ -746,8 +991,55 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     f"    {name}_each = {name}.loc[{color_col_code} == cat]\n"
                     f"    plt.scatter({xdata_code}, {ydata_code}{size_code}, color=colors[i%nc]"
                     f"{alpha_code}{label_code})\n"
-                    f"plt.legend(loc={legend_loc.__repr__()}{font_code})\n"
+                    f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{font_code})\n"
                 )
+    
+    elif dv == "Regression plot":
+        xdata = to_selected_columns(ui_input.regplot_xdata_selectize(), data)
+        ydata = to_selected_columns(ui_input.regplot_ydata_selectize(), data)
+
+        if xdata != "" and ydata != "":
+            fig_code = ""
+
+            ci_level = ui_input.regplot_ci_level_selectize()
+            ci_level_value = None if ci_level == "None" else int(ci_level.replace("%", ""))
+            if ui_input.regplot_transform_selectize() == "Polynomial":
+                trans_code = f", order={ui_input.regplot_poly_order_numeric()}"
+            elif ui_input.regplot_transform_selectize() == "Log":
+                trans_code = ", logx=True"
+            elif ui_input.regplot_transform_selectize() == "Logistic":
+                trans_code = ", logistic=True"
+            else:
+                trans_code = ""
+
+            color_data = ui_input.regplot_color_data_selectize()
+            scatter_kws = {"color": f"{color}"} if color_data == "" else {}
+            line_kws = {"color": f"{color}"} if color_data == "" else {}            
+            alpha = ui_input.regplot_alpha_slider()
+            if alpha != 1:
+                scatter_kws["alpha"] = alpha
+            cmap = ui_input.regplot_cmap_selectize()
+
+            vars_code = f", x={xdata.__repr__()}, y={ydata.__repr__()}"
+            if color_data == "":
+                hue_code = ""
+                palette_code = ""
+                legend_code = ""
+            else:
+                hue_code = f", hue={color_data.__repr__()}"
+                palette_code = f", palette={cmap.__repr__()}"
+                legend_code = f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{font_code})\n"
+
+            scatter_kws_code = f", scatter_kws={scatter_kws.__repr__()}" if scatter_kws else ""
+            line_kws_code = f", line_kws={line_kws.__repr__()}" if line_kws else ""
+            plot_code = (
+                f"plots = sns.lmplot({name}{vars_code}{hue_code}, ci={ci_level_value}{trans_code},\n"
+                f"                   legend=False{palette_code}{scatter_kws_code}{line_kws_code},\n"
+                f"                   height={height:.4f}, aspect={width/height:.4f})\n"
+                "fig = plots.figure\n"
+                "sns.despine(top=False, right=False)\n"
+                f"{legend_code}"
+            )
 
     elif dv == "Filled areas":
         cmap = ui_input.filled_areas_cmap_selectize()
@@ -783,7 +1075,73 @@ def visual_source(dv, name, data, ui_input, color, memory):
             f"{bottom_code}"
             f"{legend_code}"
         )
-        
+    
+    elif dv == "ACF and PACF":
+        columns = to_selected_columns(ui_input.ac_plot_selectize(), data)
+        func = ui_input.ac_plot_type_selectize().lower()
+        func_name = "Partial autocorrelation" if func == "pacf" else "Autocorrelation"
+        if len(columns) > 0 and func != "":
+            fig_code = ""
+            method = ui_input.ac_plot_method_selectize()
+            lags = ui_input.ac_plot_lags_numeric()
+            ci_level = ui_input.ac_plot_ci_selectize()
+            alpha_value = 1 - 0.01*int(ci_level.replace("%", "")) if ci_level != "" else 0.05
+            ci_code = f", alpha={alpha_value:.4f}" if alpha_value != 0.05 else ""
+
+            grid = ui_input.fig_grid_switch()
+            if len(columns) == 1:
+                plot_fig_code = f"fig = plt.figure(figsize=({width}, {height}))\n"
+                for_code = ""
+                indent = ""
+                column_name = f"{columns[0].__repr__()}"
+                ax_code = "ax=fig.gca(),"
+                each_ylabel_code = f"plt.ylabel({columns[0].__repr__()})\n"
+                each_title_code = f"plt.title({func_name.__repr__()})\n"
+                tight_code = ""
+                each_grid_code = "plt.grid()\n" if grid else ""
+            else:
+                num_plots = len(columns)
+                plot_fig_code = f"fig, axes = plt.subplots({num_plots}, 1, figsize=({width}, {height}))\n"
+                for_code = f"for col, ax in zip({columns}, axes):\n"
+                indent = "    "
+                column_name = "col"
+                ax_code = "ax=ax,"
+                each_ylabel_code = "ax.set_ylabel(col)\n\n"
+                each_title_code = f"axes[0].set_title({func_name.__repr__()})\n"
+                tight_code = "plt.tight_layout()\n"
+                each_grid_code = f"    ax.grid()\n" if grid else ""
+            
+            if method in ["", "Not adjusted", "ywunbiased"]:
+                method_code = ""
+            elif method == "Adjusted":
+                method_code = ", adjusted=True"
+            else:
+                method_code = f", method={method.__repr__()}"
+
+            series_code = f"{name}[{column_name}]"
+            if data[columns].isnull().values.sum() > 0:
+                series_code += ".dropna()" 
+            
+            color_str = color.__repr__()
+            color_code = f"vlines_kwargs={{'color': {color_str}}}, color={color_str}"
+            plot_code = (
+                f"{plot_fig_code}"
+                f"{for_code}"
+                f"{indent}sm.graphics.tsa.plot_{func}({series_code}, title=None,\n"
+                f"{indent}                     {' '*len(func)}"
+                f"lags={lags}{ci_code}{method_code}, auto_ylims=True, {ax_code}\n"
+                f"{indent}                     {' '*len(func)}{color_code})\n"
+                f"{each_grid_code}"
+                f"{indent}{each_ylabel_code}"
+                f"plt.xlabel('Lags')\n"
+                f"{each_title_code}"
+                f"{tight_code}"
+            )
+
+            imports.append("import statsmodels.api as sm")
+        else:
+            plot_code = "fig = plt.figure()\n"
+
     if plot_code == "":
         config_code = ""
     else:
@@ -802,7 +1160,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
         "plt.show()"
     )
 
-    if dv in ["Histogram", "KDE", "Box plot", "Pair plot"]:
+    if dv in ["Histogram", "KDE", "Box plot", "Pair plot", "Regression plot"]:
         imports.append("import seaborn as sns")
     
     return dict(code=code, imports=imports, markdown=markdown)
@@ -821,7 +1179,7 @@ def operation_exec_source(data, name, source):
         # Build exec namespace
         ns = {}
         ns[name] = data
-        ns['data'] = data
+        #ns['data'] = data
 
         # Run imports in ns
         if imports:
@@ -861,7 +1219,7 @@ def visual_exec_source(data, name, dvs_dict):
 def statsmodels_source(mds_dict, name, ui_input):
 
     markdown = ui_input.md_markdown_text_area().strip()
-    imports = ["import statsmodels.formula.api as smf"]
+    imports = ["import statsmodels.formula.api as smf", "import numpy as np"]
 
     func = ui_input.statsmodels_type_selectize()
     mds_dict["type"] = func
@@ -905,11 +1263,11 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         else:
             dummy_code = ""
         
-        y = data[predicted]
-        if (not is_numeric_dtype(y)) or is_bool_dtype(y):
-            mds_dict["type"] = "Classifier"
-        else:
-            mds_dict["type"] = "Regressor"
+        #y = data[predicted]
+        #if (not is_numeric_dtype(y)) or is_bool_dtype(y):
+        #    mds_dict["type"] = "Classifier"
+        #else:
+        #    mds_dict["type"] = "Regressor"
 
         code_step1 = (
             f"y = {name}[{predicted.__repr__()}]\n"
@@ -921,14 +1279,52 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     imports_step2 = []
     params = []
     if model != "":
-        imports_step2.extend(["import numpy as np", "from sklearn.pipeline import Pipeline"])
+        imports_step2.extend(["import numpy as np"])
+        if mds_dict["type"] == "Classifier":
+            os_method = ui_input.sklearn_over_sampling_selectize()
+            log_trans = False
+        else:
+            os_method = ""
+            log_trans = ui_input.sklearn_predicted_log_switch()
+
+        os_kwargs = []
+        if os_method == "" or os_method == "Not applied":
+            imports_step2.append("from sklearn.pipeline import Pipeline")
+            os_code = ""
+        else:
+            if os_method == "SMOTE":
+                if len(cat_predictors) == 0:
+                    os = "SMOTE"
+                elif len(cat_predictors) == len(predictors):
+                    os = "SMOTEN"
+                else:
+                    os = "SMOTENC"
+                    os_kwargs.append(f"categorical_features={cat_predictors}")  
+                os_param = "k_neighbors"
+            else:
+                os = os_method
+                os_param = "n_neighbors"
+            imports_step2.extend(["from imblearn.pipeline import Pipeline",
+                                  f"from imblearn.over_sampling import {os}"])
+            
+            if os_method in ["SMOTE", "ADASYN"]:
+                kn_str = str_to_numstr(ui_input.sklearn_over_sampling_k_neighbors())
+                kn = eval(kn_str) if isinstance(kn_str, str) else []
+                if len(kn) == 1:
+                    os_kwargs.append(f"k_neighbors={kn[0]}")
+                if len(kn) > 1:
+                    params.append(f"    'os__{os_param}': {kn_str}")
+
+            os_kwargs.append("random_state=0")
+            os_code = f"    ('os', {os}({', '.join(os_kwargs)})),\n"
+
         scaler = ui_input.sklearn_scaling_selectize()
         if scaler in ["StandardScaler", "Normalizer"]:
             imports_step2.append(f"from sklearn.preprocessing import {scaler}")
-            scaler_code = "    ('scaling', StandardScaler()),\n"
+            scaler_code = f"    ('scaling', {scaler}()),\n"
         else:
             scaler_code = ""
-        pca_str = str_to_numstr(ui_input.skleanr_pca_numbers())
+        pca_str = str_to_numstr(ui_input.sklearn_pca_numbers())
         pca = eval(pca_str) if isinstance(pca_str, str) else []
         if len(pca) > 0:
             imports_step2.append(f"from sklearn.decomposition import PCA")
@@ -950,13 +1346,14 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     args = []
     if model != "":
         hyper_list = model_hypers[model]
+        reg_name = "__regressor" if log_trans else ""
         for hyper, label, default_value in hyper_list:
             values_str = str_to_numstr(eval(f"ui_input.sklearn_{model.lower()}_{hyper}()"))
             values = eval(values_str) if isinstance(values_str, str) else []
             if len(values) == 1:
                 args.append(f"{hyper}={values[0]}")
             elif len(values) > 1:
-                params.append(f"    '{model.lower()}__{hyper}': {values_str}")
+                params.append(f"    '{model.lower()}{reg_name}__{hyper}': {values_str}")
     
     if model in ["Lasso", "LogisticRegression"]:
         args.append("max_iter=1000000")
@@ -977,13 +1374,23 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
             )
         else:
             params_code = ""
+        
+        model_object = f"{model}({', '.join(args)})"
+        if log_trans:
+            imports_step2.append("from sklearn.compose import TransformedTargetRegressor")
+            space = " " * (len(str(model)) + 9)
+            model_object = (
+                f"TransformedTargetRegressor(regressor={model_object},\n{space}"
+                f"                           func=np.log, inverse_func=np.exp)"
+            )
         code_step2 = (
             f"{params_code}"
             "steps = [\n"
+            f"{os_code}"
             f"{dummy_code}"
             f"{scaler_code}"
             f"{pca_code}"
-            f"    ({model.lower().__repr__()}, {model}({', '.join(args)}))\n"
+            f"    ({model.lower().__repr__()}, {model_object})\n"
             "]\n"
             "pipe = Pipeline(steps)"
         )
@@ -997,6 +1404,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     else:
         scoring_code = ""
         score_name = "R-squared"
+        #imports_step3.append("from sklearn.model_selection import cross_val_predict")
     test_set = ui_input.sklearn_test_set_switch()
     if test_set:
         split_code = (
@@ -1035,35 +1443,15 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         )
         imports_step3.append("from sklearn.model_selection import cross_val_score")
     
-    if mds_dict["type"] == "Classifier" and page == 3:
+    if mds_dict["type"] == "Classifier":
         pred_name = "proba"
         pred_method_code = ", method='predict_proba'"
         
-        y_label = ui_input.model_dependent_selectize()
-        target_class = ui_input.sklearn_class_selectize()
-        if is_bool_dtype(data[y_label]) and target_class in ["True", "False"]:
-            target_class = eval(target_class)
-
-        default = target_class == ""
-        threshold = 0.5 if default else ui_input.sklearn_class_threshold_slider()
-
-        if default:
-            decision_cv_code = f"\n\nyhat_cv = cross_val_predict(model, {x_name}, {y_name}, cv=cv)"
-            decision_test_code = "\nyhat_test = model.predict(x_test)"
-        else:
-            decision_cv_code = (
-                f"\n\nthreshold, target = {threshold}, {target_class.__repr__()}\n"
-                f"index = np.unique({y_name}).tolist().index(target)\n"
-                f"y_target = y == target\n"
-                f"yhat_cv = proba_cv[:, index] > threshold"
-            )
-            decision_test_code = f"\nyhat_test = proba_test[:, index] > threshold"
+        if page >= 3:
+            y_label = ui_input.model_dependent_selectize()
     else:
         pred_name = "yhat"
         pred_method_code = ""
-        decision_cv_code = ""
-        decision_test_code = ""
-
     
     if test_set:
         predict_func = "predict_proba" if mds_dict["type"] == "Classifier" else "predict"
@@ -1073,7 +1461,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         )
     else:
         test_pred_code = ""
-        decision_test_code = ""
+        #decision_test_code = ""
 
     code_step3 = (
         f"folds = {ui_input.sklearn_cv_folds_numeric()}\n"
@@ -1082,19 +1470,50 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         f"{cv_code}"
         "index=[f'fold{i}' for i in range(folds)]\n"
         f"table = pd.DataFrame({{{score_name.__repr__()}: score.round(4)}}, index=index).T\n"
-        "print(f'\\n{table}')\n"
+        "print(f'{table}')\n"
         "print(f'Cross-validation score: {score.mean():.4f}')"
         f"{test_code}\n\n"
         f"{pred_name}_cv = cross_val_predict(model, {x_name}, {y_name}{pred_method_code}, cv=cv)"
         f"{test_pred_code}"
-        f"{decision_cv_code}"
-        f"{decision_test_code}"
+        #f"{decision_cv_code}"
+        #f"{decision_test_code}"
     )
+
+    imports_step4 = []
+    if mds_dict["type"] == "Classifier" and page >= 4:
+        y_label = ui_input.model_dependent_selectize()
+        target_class = ui_input.sklearn_class_selectize()
+        if is_bool_dtype(data[y_label]) and target_class in ["True", "False"]:
+            target_class = eval(target_class)
+        default = target_class == ""
+        threshold = 0.5 if default else ui_input.sklearn_class_threshold_slider()
+
+        if default:      ######################################
+            decision_cv_code = f"yhat_cv = cross_val_predict(model, {x_name}, {y_name}, cv=cv)"
+            decision_test_code = "\nyhat_test = model.predict(x_test)"
+            imports_step4.append("from sklearn.model_selection import cross_val_predict")
+        else:
+            decision_cv_code = (
+                f"threshold, target = {threshold}, {target_class.__repr__()}\n"
+                f"index = np.unique({y_name}).tolist().index(target)\n"
+                f"y_target = y == target\n"
+                f"yhat_cv = proba_cv[:, index] > threshold"
+            )
+            decision_test_code = f"\nyhat_test = proba_test[:, index] > threshold"
+            imports_step4.append("import numpy as np")
+
+        if not test_set:
+            decision_test_code = ""
+
+        code_step4 = (
+            f"{decision_cv_code}"
+            f"{decision_test_code}"
+        )
 
     markdown = ui_input.md_markdown_text_area()
 
-    return dict(code={1: code_step1, 2: code_step2, 3: code_step3},
-                imports={1: imports_step1, 2: imports_step2, 3: imports_step3},
+    return dict(code={1: code_step1, 2: code_step2, 3: code_step3, 4: code_step4},
+                imports={1: imports_step1, 2: imports_step2, 3: imports_step3, 4: imports_step4},
                 markdown=markdown)
 
 
@@ -1104,9 +1523,10 @@ def statsmodels_outputs_source(ui_input):
     name_out = ui_input.statsmodels_output_text().strip()
 
     code = (
-        f"{name_out} = pd.concat((result.params, result.bse, result.tvalues, result.pvalues), axis=1)\n"
-        f"{name_out}.columns = ['coef', 'std err', 't-values', 'p-vlaues']\n"
-        f"{name_out}[['CI-lower', 'CI-upper']] = result.conf_int()\n"
+        #f"{name_out} = pd.concat((result.params, result.bse, result.tvalues, result.pvalues), axis=1)\n"
+        f"{name_out} = result.summary2().tables[1]\n"
+        f"{name_out}.columns = ['coef', 'std err', 't-values', 'p-vlaues', 'CI-lower', 'CI-upper']\n"
+        #f"{name_out}[['CI-lower', 'CI-upper']] = result.conf_int()\n"
         f"{name_out}"
     )
 
@@ -1139,11 +1559,17 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
             label = f"{y_label}_is_{target_class}".__repr__()
             decision_cv_code = f"\n{name_out}.loc[{row_index}, {label}] = proba_cv[:, index] > threshold"
             decision_test_code = f"{name_out}.loc[x_test.index, {label}] = proba_test[:, index] > threshold\n"
+        resid_code = ""
     else:
         predicted = "yhat"
         pred_cols = f"{y_label}_pred"
         decision_cv_code = ""
         decision_test_code = ""
+        if ui_input.sklearn_residual_switch():
+            resid_expr = f"{name_out}[{y_label.__repr__()}] - {name_out}[{pred_cols.__repr__()}]"
+            resid_code = f"\n{name_out}['{y_label}_resid'] = {resid_expr}"
+        else:
+            resid_code = ""
 
     if test_set:
         save_test_code = (
@@ -1155,11 +1581,13 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
     else:
         save_test_code = ""
     
+    
     code = (
         f"{name_out} = {name}.copy()\n"
         f"{name_out}.loc[{row_index}, {pred_cols.__repr__()}] = {predicted}_cv"
         f"{decision_cv_code}"
         f"{save_test_code}"
+        f"{resid_code}"
     )
 
     return dict(type="data", name_out=name_out, code=code, imports=imports)
@@ -1171,7 +1599,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
     test_set = ui_input.sklearn_test_set_switch()
     plots = ui_input.sklearn_outputs_checkbox()
 
-    if mds_dict["type"] == "Classifier" and page == 3:
+    if mds_dict["type"] == "Classifier" and page == 4:
         target_class = ui_input.sklearn_class_selectize()
         if is_bool_dtype(data[y_label]) and target_class in ["True", "False"]:
             target_class = eval(target_class)
@@ -1188,7 +1616,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
 
     imports = ["import matplotlib.pyplot as plt"]
     source = []
-    if "Prediction plot" in plots and page == 3:
+    if "Prediction plot" in plots and page == 4:
         if test_set:
             test_min, test_max = ", yhat_test.min()", ", yhat_test.max()"
             test_plot_code = (
@@ -1211,7 +1639,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         )
         source.append(dict(type="plot", code=code, imports=imports, fig=None))
     
-    if "Residual plot" in plots and page == 3:
+    if "Residual plot" in plots and page == 4:
         if test_set:
             test_resid_code = "resid_test = y_test - yhat_test\n"
             test_plot_code = (
@@ -1241,7 +1669,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         )
         source.append(dict(type="plot", code=code, imports=imports, fig=None))
 
-    if "Confusion matrix" in plots and page == 3:
+    if "Confusion matrix" in plots and page == 4:
         
         imports.extend(["import seaborn as sns",
                         "from sklearn.metrics import confusion_matrix"])
@@ -1290,9 +1718,9 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             )
             source.append(dict(type="plot", code=code, imports=imports, fig=None))
     
-    if "Receiver-operating characteristic" in plots and page == 3:
+    if "Receiver-operating characteristic" in plots and page == 4:
 
-        imports.append("from sklearn.metrics import roc_curve")
+        imports.extend(["import numpy as np", "from sklearn.metrics import roc_curve"])
 
         rows = "[x_train.index]" if test_set else ""
         code = (
@@ -1312,9 +1740,10 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         )
         source.append(dict(type="plot", code=code, imports=imports, fig=None))
     
-    if "Precision-recall" in plots:
+    if "Precision-recall" in plots and page == 4:
 
-        imports.extend(["from sklearn.metrics import precision_recall_curve",
+        imports.extend(["import numpy as np",
+                        "from sklearn.metrics import precision_recall_curve",
                         "from sklearn.metrics import f1_score"])
         
         rows = "[x_train.index]" if test_set else ""
@@ -1326,7 +1755,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             "k = np.argmin(abs(thresholds - threshold))\n"
             "plt.scatter(recall[k], precision[k], s=80, linewidth=2, edgecolor='b', facecolor='lightblue')\n"
             "plt.text(0.6, 0.98, f'f1-score: {f1:.4f}',\n"
-            "         bbox=dict(facecolor='wheat', edgecolor='black', boxstyle='round,pad=0.5'))\n"
+            "         bbox=dict(facecolor='wheat', edgecolor='black', boxstyle='round, pad=0.5'))\n"
             "plt.title('Cross-validation')\n"
             "plt.xlabel('Recall')\n"
             "plt.ylabel('Precision')\n"
