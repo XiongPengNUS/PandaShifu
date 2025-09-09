@@ -1785,19 +1785,22 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                                  min=2, max=10, step=1, value=2)
 
                                     @reactive.effect
-                                    @reactive.event(input.regplot_ydata_selectize)
-                                    def regplot_logistic_choices_update():
+                                    @reactive.event(input.regplot_ydata_selectize,
+                                                    input.regplot_xdata_selectize)
+                                    def regplot_transform_choices_update():
                                         node = node_input.get()
                                         data = node["data"]
-                                        label = to_selected_columns(input.regplot_ydata_selectize(), data)
-                                        if label != "":
-                                            yvalue = data[label]
+                                        ylabel = to_selected_columns(input.regplot_ydata_selectize(), data)
+                                        xlabel = to_selected_columns(input.regplot_xdata_selectize(), data)
+                                        if xlabel != "" and ylabel != "":
                                             choices = ["None", "Polynomial"]
-                                            if (yvalue > 0).all():
+                                            xvalue = data[xlabel]
+                                            if (xvalue > 0).all():
                                                 choices.append("Log")
+                                            yvalue = data[ylabel]
                                             if is_bool_dtype(yvalue) or ((yvalue*(1-yvalue) >= 0).all()):
                                                 choices.append("Logistic")
-                                            ui.update_selectize("regplot_transform_selectize", 
+                                            ui.update_selectize("regplot_transform_selectize",
                                                                 choices=choices)
 
                                     @reactive.effect
