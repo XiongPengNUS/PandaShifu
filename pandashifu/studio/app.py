@@ -1722,13 +1722,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                            value=input.regplot_xdata_selectize())
                                             ui.update_text("fig_ylabel_text",
                                                            value=input.regplot_ydata_selectize())
-
-                                        column = input.boxplot_column_selectize()
-                                        group = input.boxplot_group_by_selectize()
-                                        if input.boxplot_direction_selectize() == "Horizontal":
-                                            group, column = column, group
-                                        ui.update_text("fig_xlabel_text", value=group)
-                                        ui.update_text("fig_ylabel_text", value=column)
                                     
                                         choices = [""] + discrete_labels(data, max_cats=8)
                                         inline_label("Hues")
