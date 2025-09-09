@@ -1,14 +1,13 @@
 shiny >= 1.4.0
 pandas >= 2.2.3
-numpy >= 1.26.4
-scipy >= 1.14.1
+numpy >= 2.0.2
+scipy >= 1.15.3
 xlsxwriter >= 3.2.0
-matplotlib >= 3.8.4
+matplotlib >= 3.10.3
 seaborn >= 0.13.2
 bokeh >= 3.7.2
 jupyter_bokeh >= 4.0.5
 shinywidgets >= 0.3.2
 scikit-learn >= 1.7.1
 imbalanced-learn >= 0.14.0
-statsmodels >= 0.14.2
-
+statsmodels >= 0.14.5

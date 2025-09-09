@@ -3,7 +3,7 @@ from pathlib import Path
 
 import uvicorn
 import asyncio
-#import webbrowser
+import warnings
 import socket
 
 def occupied_port(port: int) -> bool:
@@ -17,10 +17,13 @@ def run(port=8010):
 
     current_file = Path(__file__)
     directory = current_file.parent
-    app = wrap_express_app(Path(directory/"app.py"))
 
-    print(f"Uvicorn running on: http://localhost:{port}")
-    config = uvicorn.Config(app, port=port)
-    server = uvicorn.Server(config)
-    loop = asyncio.get_running_loop()
-    loop.create_task(server.serve())
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        app = wrap_express_app(Path(directory/"app.py"))
+
+        print(f"Uvicorn running on: http://localhost:{port}")
+        config = uvicorn.Config(app, port=port)
+        server = uvicorn.Server(config)
+        loop = asyncio.get_running_loop()
+        loop.create_task(server.serve())

@@ -56,8 +56,6 @@ def to_selected_columns(columns, data):
         if isinstance(columns, str):
             return "" if columns == "" else eval(columns) 
         else:
-            #fprint([col for col in columns if col in data.columns], data.columns)
-            
             return [eval(col) for col in columns
                     if col in to_column_choices(data.columns)]
     else:
@@ -135,7 +133,7 @@ def operation_source(op, name, data, ui_input, memory):
     imports = []
 
     code = f"{left}{name}{right}{result}"
-    if op == "Value Counts Operations":
+    if op == "Value counts operations":
         columns = to_selected_columns(ui_input.counts_ops_selectize(), data)
         unpack = to_selected_columns(ui_input.counts_ops_unstack_selectize(), data)
 
@@ -269,9 +267,18 @@ def operation_source(op, name, data, ui_input, memory):
         reset_index = ui_input.group_reset_switch()
         reset_code = ".reset_index()" if reset_index else ""
         if columns != [] and views != [] and aggs != []:
+            rename_col_code = ""
+            if ui_input.group_transpose_switch():
+                transpose_code = ".T"
+                if len(columns) == 1 and left != "" and columns[0] in data.columns:
+                    if is_numeric_dtype(data[columns[0]]):
+                        rename_col_code = f"\n{name_out}.columns = {name_out}.columns.astype(str)"
+            else:
+                transpose_code = ""
+        
             code = (
                 f"{left}{name}.groupby({columns.__repr__()})[{views.__repr__()}]"
-                f".agg({aggs.__repr__()}){reset_code}{result}"
+                f".agg({aggs.__repr__()}){transpose_code}{reset_code}{rename_col_code}{result}"
             )
     
     elif op == "Pivot table":
@@ -280,6 +287,7 @@ def operation_source(op, name, data, ui_input, memory):
         columns = to_selected_columns(ui_input.pivot_columns_selectize(), data)
         methods = list(ui_input.pivot_methods_selectize())
         reset = ui_input.pivot_reset_switch()
+        transpose = ui_input.pivot_transpose_switch()
 
         if values != [] and index != [] and columns != [] and methods != []:
             values_code = f"values = {values.__repr__()}"
@@ -287,12 +295,21 @@ def operation_source(op, name, data, ui_input, memory):
             columns_code = f"columns = {columns.__repr__()}"
             methods_code = f"func = {methods.__repr__()}"
             reset_code = ".reset_index()" if reset else ""
+            rename_col_code = ""
+            if transpose:
+                transpose_code = ".T"
+                if len(index) == 1 and left != "" and index[0] in data.columns:
+                    if is_numeric_dtype(data[index[0]]):
+                        rename_col_code = f"\n{name_out}.columns = {name_out}.columns.astype(str)"
+            else:
+                transpose_code = ""
             code = (
                 f"{values_code}\n"
                 f"{index_code}\n"
                 f"{columns_code}\n"
                 f"{methods_code}\n"
-                f"{left}{name}.pivot_table(values, index, columns, aggfunc=func){reset_code}{result}"
+                f"{left}{name}.pivot_table(values, index, columns, aggfunc=func)"
+                f"{transpose_code}{reset_code}{rename_col_code}{result}"
             )
 
     elif op == "Treat missing values":
@@ -333,34 +350,33 @@ def operation_source(op, name, data, ui_input, memory):
     elif op == "Time trend":
         columns = to_selected_columns(ui_input.time_trend_columns_selectize(), data)
         transform = ui_input.time_trend_transform_selectize()
-        #step = ui_input.time_trend_step_numeric()
         steps_str = str_to_numstr(ui_input.time_trend_steps_text())
         if steps_str is None:
             steps_str = '[1]'
         steps = eval(steps_str) if isinstance(steps_str, str) else [1]
-        #if isinstance(steps, np.ndarray):
-        #    steps = steps.tolist()
-        #else:
-        #    steps = list(steps)
-        #is_int = [isinstance(s, int) for s in steps]
-        #if not all(is_int):
-        #    raise TypeError("Step values must be integers.")
 
+        if ui_input.time_trend_drop_original_data():
+            copy_right_code = "pd.DataFrame()"
+            imports.append("import pandas as pd")
+        else:
+            copy_right_code = f"{name}.copy()" 
         copy_name = f"{name}_copy" if left == "" else name_out
-        copy_code = f"{copy_name} = {name}.copy()" if left == "" else f"{left}{name}.copy()"
+        copy_code = f"{copy_name} = {copy_right_code}" if left == "" else f"{left}{copy_right_code}"
         
         if len(columns) > 0 and transform != "":
             if transform == "change":
-                expr = f"{copy_name}[from_cols].diff(step)"
+                expr = f"{name}[from_cols].diff(step)"
             elif transform == "relative change":
-                expr = f"{copy_name}[from_cols].pct_change(step)"
+                expr = f"{name}[from_cols].pct_change(step)"
             elif transform == "log change":
-                expr = f"np.log({copy_name}[from_cols]).diff(step)"
+                expr = f"np.log({name}[from_cols]).diff(step)"
                 imports.append("import numpy as np")
             elif transform == "moving average":
-                expr = f"{copy_name}[from_cols].rolling(step).mean()"
+                expr = f"{name}[from_cols].rolling(step).mean()"
             else:
                 expr = "None"
+
+            
             if len(steps) == 1:
                 step = steps[0]
                 step_str = f"{step}-step " if step != 1 or transform == "moving average" else ""
@@ -584,7 +600,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
     width, height = ui_input.fig_width_slider()/100, ui_input.fig_height_slider()/100
     color_code = "" if color == "#1f77b4" else f", color={color.__repr__()}"
 
-    if dv in ["Pair plot", "ACF and PACF"]:
+    if dv in ["Pair plot", "Radar chart", "ACF and PACF"]:
         fig_code = title_code = xlabel_code = ylabel_code = font_code = rotate_code = grid_code = ""
         legend_loc = ""
     else:
@@ -597,8 +613,11 @@ def visual_source(dv, name, data, ui_input, color, memory):
         title_code = f"plt.title({title.__repr__()}{font_code})\n" if title != "" else ""
 
         xlabel, ylabel = ui_input.fig_xlabel_text().strip(), ui_input.fig_ylabel_text().strip()
-        xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code})\n" if xlabel != "" else ""
-        ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code})\n" if ylabel != "" else ""
+        special_dvs = ["Probability plot", "Histogram", "KDE", "Box plot", "Heat map", "Regression plot"]
+        specify_xlabel = xlabel != "" or dv in special_dvs
+        specify_ylabel = ylabel != "" or dv in special_dvs
+        xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code})\n" if specify_xlabel else ""
+        ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code})\n" if specify_ylabel else ""
 
         legend_loc = ui_input.fig_legend_loc_selectize()
         
@@ -606,7 +625,9 @@ def visual_source(dv, name, data, ui_input, color, memory):
         align = "center" if rotate%90== 0 else "left" if rotate < 0 else "right"
         rotate_cond = rotate != 0
         if dv == "Bar chart":
-            rotate_cond = (ui_input.bar_direction_selectize() != 'Horizontal')
+            rotate_cond = ui_input.bar_direction_selectize() != 'Horizontal'
+        elif dv == "Heat map":
+            rotate_cond = not ui_input.heatmap_top_tick_switch()
         rotate_code = f"plt.xticks(rotation={rotate}, ha={align.__repr__()})\n" if rotate_cond else ""
     
         grid_code = "plt.grid()\n" if ui_input.fig_grid_switch() else ""
@@ -647,7 +668,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             common_code = f", common_norm={norm == "Jointly"}"
             style_code = f", multiple={style.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code})\n"
+            title_font_code = f", title_fontsize={fontsize}" if fontsize != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code}{title_font_code})\n"
             break_code = f"\n             "
 
             if hue == "":
@@ -675,7 +697,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             common_code = f", common_norm={norm == "Jointly"}"
             style_code = f", multiple={style.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code})\n"
+            title_font_code = f", title_fontsize={fontsize}" if fontsize != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code}{title_font_code})\n"
             break_code = f"\n            "
 
             if hue == "":
@@ -714,9 +737,11 @@ def visual_source(dv, name, data, ui_input, color, memory):
             mean_code = f", showmeans=True, {break_code}{mean_prop_code}" if mean else ""
             hue_code = f", hue={hue.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code})\n"
+            title_font_code = f", title_fontsize={fontsize}" if fontsize != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code}{title_font_code})\n"
             if hue == "":
-                hue_code = cmap_code = break_code = legend_code = ""
+                hue_code = cmap_code = legend_code = ""
+                break_code = " "
             else:
                 color_code = ""
             alpha_code = f", boxprops=dict(alpha={ui_input.boxplot_alpha_slider()})"
@@ -750,10 +775,10 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 f"sm.qqplot(sample{distr_code}, line='q',\n"
                 f"          markeredgecolor='none'{color_code}{alpha_code}, ax=fig.gca())\n"
             )
-            if xlabel == "":
-                xlabel_code = "plt.xlabel('')\n"
-            if ylabel == "":
-                ylabel_code = "plt.ylabel('')\n"
+            #if xlabel == "":
+            #    xlabel_code = "plt.xlabel('')\n"
+            #if ylabel == "":
+            #    ylabel_code = "plt.ylabel('')\n"
             imports.extend(["import statsmodels.api as sm",
                             f"from scipy.stats import {distr}"])
 
@@ -813,12 +838,17 @@ def visual_source(dv, name, data, ui_input, color, memory):
             data_code = f"{name}[{columns.__repr__()}]" if columns != data.columns.tolist() else name
             annot_code = ", annot=True" if annot else ""
             cmap_code = f", cmap={cmap.__repr__()}" if cmap != "" else ""
+
             toptick_code = "\nfig.gca().xaxis.tick_top()" if toptick else ""
             plot_code = (
                 f"sns.heatmap({data_code}{annot_code}{cmap_code}, ax=fig.gca())"
                 f"{toptick_code}\n"
             )
             imports.append("import seaborn as sns")
+
+            #xlabel, ylabel = ui_input.fig_xlabel_text().strip(), ui_input.fig_ylabel_text().strip()
+            #xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code})\n"
+            #ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code})\n"
 
     elif dv == "Bar chart":
         current_ydata = ui_input.bar_ydata_selectize()
@@ -851,7 +881,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     legend_title_code = ""
                 else:
                     names = ['-' if name is None else str(name) for name in data.columns.names]
-                    legend_title_code = f"title={(', '.join(names)).__repr__()}, "
+                    legend_title_code = f"title={(', '.join(names)).__repr__()}, title_fontsize={fontsize}, "
                 legend_code = f"plt.legend({legend_title_code}loc={legend_loc.__repr__()}{font_code})\n"
 
             hide_xlabel_code = ", xlabel=''" if ui_input.fig_xlabel_text() == "" else ""
@@ -879,6 +909,43 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 f"{hide_xlabel_code}{hide_ylabel_code}{hide_legend_code}, ax=fig.gca())\n"
                 f"{legend_code}"
             )
+    
+    elif dv == "Radar chart":
+        columns = to_selected_columns(ui_input.radar_selectize(), data)
+        cats = to_selected_columns(ui_input.radar_cats_selectize(), data)
+        cmap = ui_input.radar_cmap_selectize()
+        alpha = ui_input.radar_alpha_slider()
+        tick_angle = ui_input.radar_tick_angle_slider()
+        
+        if len(columns) > 0:
+            cats_code = f"{name}[{cats.__repr__()}].tolist()" if cats != "" else f"{name}.index.tolist()"
+            if len(columns) > 1:
+                if list(data.columns.names) == [None]:
+                    legend_title_code = ""
+                else:
+                    names = ['-' if name is None else str(name) for name in data.columns.names]
+                    legend_title_code = f"title={(', '.join(names)).__repr__()}, "
+                loc_code = "loc='outside lower center', ncol=len(columns)"
+                legend_code = f"fig.legend({legend_title_code}labels=values.columns, {loc_code})\n"
+            else:
+                legend_code = ""
+            plot_code = (
+                f"fig, ax = plt.subplots(figsize=({width}, {height}), subplot_kw={{'polar': True}})\n"
+                f"ax.set_prop_cycle(cycler('color', plt.cm.{cmap}.colors))\n"
+                f"cats = {cats_code}\n"
+                "angles = np.concatenate((np.linspace(0, 2*np.pi, len(cats), endpoint=False), [0]))\n"
+                f"columns = {columns.__repr__()}\n"
+                f"values = data[columns].iloc[list(range(len(data))) + [0]]\n"
+                f"ax.fill(angles, values, alpha={alpha})\n"
+                "ax.plot(angles, values, 'o-', linewidth=2)\n"
+                "ax.set_theta_offset(np.pi / 2)\n"
+                f"ax.set_rlabel_position({tick_angle})\n"
+                "ax.set_thetagrids(np.degrees(angles[:-1]), cats)\n"
+                f"{legend_code}"
+            )
+            imports.extend(["import numpy as np", "from matplotlib import cycler"])
+        else:
+            plot_code = "fig = plt.figure()\n"
     
     elif dv == "Line plot":
         markers = {"none": "",
@@ -1001,16 +1068,23 @@ def visual_source(dv, name, data, ui_input, color, memory):
         if xdata != "" and ydata != "":
             fig_code = ""
 
-            ci_level = ui_input.regplot_ci_level_selectize()
-            ci_level_value = None if ci_level == "None" else int(ci_level.replace("%", ""))
-            if ui_input.regplot_transform_selectize() == "Polynomial":
-                trans_code = f", order={ui_input.regplot_poly_order_numeric()}"
-            elif ui_input.regplot_transform_selectize() == "Log":
-                trans_code = ", logx=True"
-            elif ui_input.regplot_transform_selectize() == "Logistic":
-                trans_code = ", logistic=True"
+            fitted = ui_input.regplot_fitted_line_switch()
+            if fitted:
+                reg_code = ""
+                ci_level = ui_input.regplot_ci_level_selectize()
+                ci_level_value = None if ci_level == "None" else int(ci_level.replace("%", ""))
+                if ui_input.regplot_transform_selectize() == "Polynomial":
+                    trans_code = f", order={ui_input.regplot_poly_order_numeric()}"
+                elif ui_input.regplot_transform_selectize() == "Log":
+                    trans_code = ", logx=True"
+                elif ui_input.regplot_transform_selectize() == "Logistic":
+                    trans_code = ", logistic=True"
+                else:
+                    trans_code = ""
+                ci_code = f", ci={ci_level_value}"
             else:
-                trans_code = ""
+                reg_code = ",fit_reg=False"
+                trans_code = ci_code = ""
 
             color_data = ui_input.regplot_color_data_selectize()
             scatter_kws = {"color": f"{color}"} if color_data == "" else {}
@@ -1021,22 +1095,42 @@ def visual_source(dv, name, data, ui_input, color, memory):
             cmap = ui_input.regplot_cmap_selectize()
 
             vars_code = f", x={xdata.__repr__()}, y={ydata.__repr__()}"
+            xydata_code = f"[{xdata.__repr__()}, {ydata.__repr__()}]"
             if color_data == "":
+                hue_order_code = ""
                 hue_code = ""
                 palette_code = ""
                 legend_code = ""
+                centroid_code = f"centroid = {name}[{xydata_code}].mean().to_frame().T\n"
+                centroid_color_code = f", facecolor = {color.__repr__()}"
             else:
-                hue_code = f", hue={color_data.__repr__()}"
+                hue_order_code = f"hues = np.sort({name}[{color_data.__repr__()}].unique()).tolist()\n"
+                hue_code = f", hue={color_data.__repr__()}, hue_order=hues"
                 palette_code = f", palette={cmap.__repr__()}"
                 legend_code = f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{font_code})\n"
+                centroid_code = f"centroid = {name}.groupby({color_data.__repr__()})[{xydata_code}].mean()\n"
+                centroid_color_code = ""
+                imports.append("import numpy as np")
+            
+            if ui_input.regplot_centroid_switch():
+                plot_centroid_code = (
+                    f"{centroid_code}"
+                    f"sns.scatterplot(centroid{vars_code}{hue_code}, marker='X',\n"
+                    f"                edgecolor='k'{centroid_color_code}, s=90, linewidth=2,\n"
+                    f"                legend=False{palette_code}, ax=fig.gca(), zorder=2)\n"
+                )
+            else:
+                plot_centroid_code = ""
 
             scatter_kws_code = f", scatter_kws={scatter_kws.__repr__()}" if scatter_kws else ""
             line_kws_code = f", line_kws={line_kws.__repr__()}" if line_kws else ""
             plot_code = (
-                f"plots = sns.lmplot({name}{vars_code}{hue_code}, ci={ci_level_value}{trans_code},\n"
+                f"{hue_order_code}"
+                f"plots = sns.lmplot({name}{vars_code}{hue_code}{reg_code}{ci_code}{trans_code},\n"
                 f"                   legend=False{palette_code}{scatter_kws_code}{line_kws_code},\n"
                 f"                   height={height:.4f}, aspect={width/height:.4f})\n"
                 "fig = plots.figure\n"
+                f"{plot_centroid_code}"
                 "sns.despine(top=False, right=False)\n"
                 f"{legend_code}"
             )
@@ -1048,33 +1142,41 @@ def visual_source(dv, name, data, ui_input, color, memory):
         xdata = to_selected_columns(ui_input.filled_areas_xdata_selectize(), data)
         alpha = ui_input.filled_areas_alpha_slider()
         
-        if style != "Stack":
-            bottom_init_code = ""
-            y1_code = f", y1={name}[c]"
-            y2_code = ""
-            bottom_code = ""
-        else:
-            bottom_init_code = "bottom = 0\n"
-            y1_code = f", y1=bottom+{name}[c]"
-            y2_code = f", y2=bottom"
-            bottom_code = f"    bottom += {name}[c]\n"
+        if len(ydata) > 0:
+            if len(ydata) == 1:
+                y1_code = f", y1={name}[{ydata[0].__repr__()}]"
+                column_code = bottom_code = bottom_init_code = ""
+                y2_code = for_code = indent_code = label_code = legend_code = ""
+            else:
+                column_code = f"columns = {ydata}\n"
+                for_code = "for i, c in enumerate(columns):\n"
+                indent_code = "    "
+                label_code = f", label=c"
+                legend_code = f"plt.legend(loc={legend_loc.__repr__()}{font_code})\n"
+                if style != "Stack":
+                    bottom_init_code = ""
+                    y1_code = f", y1={name}[c]"
+                    y2_code = ""
+                    bottom_code = ""
+                else:
+                    bottom_init_code = "bottom = 0\n"
+                    y1_code = f", y1=bottom+{name}[c]"
+                    y2_code = f", y2=bottom"
+                    bottom_code = f"    bottom += {name}[c]\n"
         
-        xdata_code = f"{name}.index" if xdata == "" else f"{name}[{xdata.__repr__()}]"
-        color_code = ", color=colors[i%nc]"
-        alpha_code = alpha_code = f", alpha={alpha}" if alpha != 1 else ""
-        label_code = f", label=c"
-        legend_code = "" if len(ydata) <= 1 else f"plt.legend(loc={legend_loc.__repr__()}{font_code})\n"
+            xdata_code = f"{name}.index" if xdata == "" else f"{name}[{xdata.__repr__()}]"
+            alpha_code = alpha_code = f", alpha={alpha}" if alpha != 1 else ""
 
-        plot_code = (
-            f"colors = plt.cm.{cmap}.colors\n"
-            "nc = len(colors)\n"
-            f"{bottom_init_code}"
-            f"columns = {ydata}\n"
-            "for i, c in enumerate(columns):\n"
-            f"    plt.fill_between({xdata_code}{y1_code}{y2_code}{color_code}{alpha_code}{label_code})\n"
-            f"{bottom_code}"
-            f"{legend_code}"
-        )
+            plot_code = (
+                f"fig.gca().set_prop_cycle(cycler('color', plt.cm.{cmap}.colors))\n"
+                f"{bottom_init_code}"
+                f"{column_code}"
+                f"{for_code}"
+                f"{indent_code}plt.fill_between({xdata_code}{y1_code}{y2_code}{alpha_code}{label_code})\n"
+                f"{bottom_code}"
+                f"{legend_code}"
+            )
+            imports.append("from matplotlib.pyplot import cycler")
     
     elif dv == "ACF and PACF":
         columns = to_selected_columns(ui_input.ac_plot_selectize(), data)
@@ -1215,6 +1317,7 @@ def visual_exec_source(data, name, dvs_dict):
         return eval("fig", ns)
     except Exception as err:
         return str(err)
+
 
 def statsmodels_source(mds_dict, name, ui_input):
 
