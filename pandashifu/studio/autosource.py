@@ -172,7 +172,10 @@ def operation_source(op, name, data, ui_input, memory):
     elif op == "Boolean conditions":
         current_column = ui_input.filter_column_selectize()
         current_operator = ui_input.filter_operator_selectize()
-        current_value_str = ui_input.filter_value_text().strip()
+        if current_operator in ["is True", "not True"]:
+            current_value_str = None
+        else:
+            current_value_str = ui_input.filter_value_text().strip()
 
         filters = memory.copy()
         if current_column != "" and current_operator != "" and current_value_str != "":
@@ -195,6 +198,9 @@ def operation_source(op, name, data, ui_input, memory):
                     iter_values = [iter_values]
                 not_code = "~" if operator == "not in" else ""
                 opr_code = f".isin({iter_values})"
+            elif operator in ["is True", "not True"]:
+                not_code = "~" if operator == "not True" else ""
+                opr_code = ""
             else:
                 not_code = ""
                 opr_code = f" {operator} {value}"
@@ -853,16 +859,22 @@ def visual_source(dv, name, data, ui_input, color, memory):
     elif dv == "Bar chart":
         current_ydata = ui_input.bar_ydata_selectize()
         current_color = color
+        current_label = ui_input.bar_label_text().strip()
 
         bars = memory.copy()
         ydata = []
         bar_colors = []
+        label_map = {}
         for bar in bars:
             ydata.append(to_selected_columns(bar["ydata"], data))
             bar_colors.append(bar["color"])
+            if bar["label"] != "":
+                label_map[to_selected_columns(bar["ydata"], data)] = bar["label"]
         if current_ydata != "":
             ydata.append(to_selected_columns(current_ydata, data))
             bar_colors.append(current_color)
+            if current_label != "":
+                label_map[to_selected_columns(current_ydata, data)] = current_label
         
         if len(ydata) > 0:
             xdata = to_selected_columns(ui_input.bar_xdata_selectize(), data)
@@ -882,7 +894,14 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 else:
                     names = ['-' if name is None else str(name) for name in data.columns.names]
                     legend_title_code = f"title={(', '.join(names)).__repr__()}, title_fontsize={fontsize}, "
-                legend_code = f"plt.legend({legend_title_code}loc={legend_loc.__repr__()}{font_code})\n"
+                
+                if len(label_map) > 0:
+                    legend_labels = [y if y not in label_map else label_map[y] for y in ydata]
+                    label_code = f"labels={legend_labels.__repr__()}, "
+                    legend_title_code = ""
+                else:
+                    label_code = ""
+                legend_code = f"plt.legend({label_code}{legend_title_code}loc={legend_loc.__repr__()}{font_code})\n"
 
             hide_xlabel_code = ", xlabel=''" if ui_input.fig_xlabel_text() == "" else ""
             hide_ylabel_code = ", ylabel=''" if ui_input.fig_ylabel_text() == "" else ""
@@ -901,6 +920,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 sort_code = ""
                 name_sorted = name
             shift = " " *(len(name_sorted) + (bar_func == "barh"))
+            
             plot_code = (
                 f"{sort_code}"
                 f"{name_sorted}.plot.{bar_func}({xdata_code}y={ydata.__repr__()}, "
@@ -935,7 +955,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 f"cats = {cats_code}\n"
                 "angles = np.concatenate((np.linspace(0, 2*np.pi, len(cats), endpoint=False), [0]))\n"
                 f"columns = {columns.__repr__()}\n"
-                f"values = data[columns].iloc[list(range(len(data))) + [0]]\n"
+                f"values = {name}[columns].iloc[list(range(len({name}))) + [0]]\n"
                 f"ax.fill(angles, values, alpha={alpha})\n"
                 "ax.plot(angles, values, 'o-', linewidth=2)\n"
                 "ax.set_theta_offset(np.pi / 2)\n"
@@ -959,6 +979,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
         if ydata != "":
             lines.append(dict(xdata=ui_input.line_xdata_selectize(),
                               ydata=ydata,
+                              label=ui_input.line_label_text().strip(),
                               margin=margin,
                               color=color,
                               style=ui_input.line_style_selectize(),
@@ -981,7 +1002,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
             marker_code = "" if marker == '' else f", marker={marker.__repr__()}"
             scale = 3**(line["scale"] - 1)
             scale_code = "" if scale == 1 else f", markersize={6*scale:.3f}"
-            label_str = f"{line['ydata']}"
+            label_str = f"{line['ydata']}" if line['label'] == "" else line['label']
 
             if len(line["margin"]) > 0:
                 if len(line["margin"]) == 1:
@@ -1360,8 +1381,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
                 f"\n\ncats = {cat_predictors.__repr__()}\n"
                 "ohe = OneHotEncoder(drop='first', sparse_output=False)\n"
                 "to_dummies = ColumnTransformer(transformers=[('cats', ohe, cats)],\n"
-                "                               remainder='passthrough',\n"
-                "                               force_int_remainder_cols=False)"
+                "                               remainder='passthrough')"
             )
         else:
             dummy_code = ""
@@ -1526,8 +1546,9 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         y_name, x_name = "y", "x"
         test_code = ""
     if len(params) > 0:
+        n_jobs_code = "" if log_trans else ", n_jobs=-1"
         cv_code = (
-            f"search = GridSearchCV(pipe, params{scoring_code}, cv=cv, error_score='raise', n_jobs=-1)\n"
+            f"search = GridSearchCV(pipe, params{scoring_code}, cv=cv, error_score='raise'{n_jobs_code})\n"
             f"search.fit({x_name}, {y_name})\n"
             "print('Best parameters:')\n"
             "for p in params:\n"

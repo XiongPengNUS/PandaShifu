@@ -18,22 +18,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 #import pyperclip
-from xlsxwriter.workbook import Workbook
+#from xlsxwriter.workbook import Workbook
 
 from shiny import reactive
 from shiny.ui import output_plot
 from shiny.express import render, ui, input, expressify
 
-from bokeh.models import ColorPicker
-from shinywidgets import render_bokeh
-
 from .autosource import *
 from .canvas import *
 from .styles import *
+from .components import color_input as ui_color_input
 
 
-#current_file = Path(__file__)
-#current_directory = current_file.parent
+ui.head_content(
+    ui.tags.script(src="color_binding.js?v=1")  # bump v= to bust caches if you edit the file
+)
 
 def hr(margin=0.75, offset=0):
 
@@ -72,14 +71,14 @@ def tool_icon_code(id, figsize):
 
 def tool_effect_code(name, cat):
 
-    id = name.lower().replace(' ', '_')
+    id = name.lower().replace(' ', '_').replace('-', '_')
 
     return (
         "@reactive.effect\n"
         f"@reactive.event(input.{id}_button)\n"
         f"def to_{id}_section():\n"
         f"    {cat}_selected.set('{name}')\n"
-        f"    ui.update_navs('main', selected='{cat}s_panel')\n"
+        f"    ui.update_navset('main', selected='{cat}s_panel')\n"
         f"    {cat}_memory.set([])\n"
     )
 
@@ -87,7 +86,7 @@ def tool_effect_code(name, cat):
 def tool_disable(disabled):
 
     for item in ops_menu + dvs_menu + mds_menu:
-        item_id = item.lower().replace(' ', '_')
+        item_id = item.lower().replace(' ', '_').replace('-', '_')
         ui.update_action_button(f"{item_id}_button", disabled=disabled)
 
 
@@ -171,7 +170,7 @@ dvs_menu = ["Value counts", "Probability plot", "Histogram", "KDE", "Box plot", 
             "Scatter plot", "Regression plot", "ACF and PACF"]
 
 # The menu of all modeling tools
-mds_menu = ["Statsmodels", "Sklearn models"]
+mds_menu = ["Statsmodels", "Scikit-learn models"]
 
 # Reactive values shared across the app
 nodes = reactive.value([])
@@ -196,7 +195,6 @@ mds = reactive.value(dict(type="", source={}, results=None, outputs=None, memory
 md_memory = reactive.value({})
 md_page = reactive.value(1)
 
-
 dvs_view = reactive.value(dict(fig=None, width=640, height=480))
 
 model_visual_view = reactive.value(dict(pred=None, reside=None))
@@ -207,9 +205,6 @@ model_page = reactive.value(1)
 model_reset = reactive.value(False)
 
 var_names = reactive.value([])
-
-
-#ui.page_opts(title="Panda Shifu", full_width=True)
 
 with ui.layout_column_wrap(width="1060px", fixed_width=True):
     with ui.navset_hidden(id="main"):
@@ -222,7 +217,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         button_gap = "10px"
                         #button_heights = "110px"    
                         #icon_size = "140px", "120px"
-                        button_heights = "90px"
+                        button_heights = "80px"
                         icon_size = "95px", "70px"
                         figsize = (4, 3)
 
@@ -230,42 +225,39 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             with ui.layout_columns(col_widths=(4, 4, 4), gap=button_gap, row_heights=button_heights):
                                 tool_ns = globals()
                                 for op_name in ops_menu:
-                                    op_id = op_name.lower().replace(' ', '_')
+                                    op_id = op_name.lower().replace(' ', '_').replace('-', '_')
                                     exec(tool_icon_code(op_id, figsize), tool_ns)
                                     icon = output_plot(f"{op_id}_button_icon",
-                                                    width=icon_size[0], height=icon_size[1])
+                                                       width=icon_size[0], height=icon_size[1])
 
-                                    ui.input_action_button(f"{op_id}_button", "", icon=icon,
-                                                        style="padding:0px;padding-top:5px;padding-bottom:5px",
-                                                        disabled=True)
+                                    ui.input_action_button(f"{op_id}_button", icon,
+                                                           style=icon_button_style, disabled=True)
                                     exec(tool_effect_code(op_name, "op"), tool_ns)
                                 
                         with ui.nav_panel("Visuals", value="dvs_toolset"):
                             with ui.layout_columns(col_widths=(4, 4, 4), gap=button_gap, row_heights=button_heights):
                                 tool_ns = globals()
                                 for dv_name in dvs_menu:
-                                    dv_id = dv_name.lower().replace(' ', '_')
+                                    dv_id = dv_name.lower().replace(' ', '_').replace('-', '_')
                                     exec(tool_icon_code(dv_id, figsize), tool_ns)
                                     icon = output_plot(f"{dv_id}_button_icon",
-                                                    width=icon_size[0], height=icon_size[1])
+                                                       width=icon_size[0], height=icon_size[1])
 
-                                    ui.input_action_button(f"{dv_id}_button", "", icon=icon,
-                                                        style="padding:0px;padding-top:5px;padding-bottom:5px",
-                                                        disabled=True)
+                                    ui.input_action_button(f"{dv_id}_button", icon,
+                                                           style=icon_button_style, disabled=True)
                                     exec(tool_effect_code(dv_name, "dv"), tool_ns)
 
                         with ui.nav_panel("Models", value="mds_toolset"):
                             with ui.layout_columns(col_widths=(4, 4, 4), gap=button_gap, row_heights=button_heights):
                                 tool_ns = globals()
                                 for md_name in mds_menu:
-                                    md_id = md_name.lower().replace(' ', '_')
+                                    md_id = md_name.lower().replace(' ', '_').replace('-', '_')
                                     exec(tool_icon_code(md_id, figsize), tool_ns)
                                     icon = output_plot(f"{md_id}_button_icon",
-                                                    width=icon_size[0], height=icon_size[1])
+                                                       width=icon_size[0], height=icon_size[1])
 
-                                    ui.input_action_button(f"{md_id}_button", "", icon=icon,
-                                                        style="padding:0px;padding-top:5px;padding-bottom:5px",
-                                                        disabled=True)
+                                    ui.input_action_button(f"{md_id}_button", icon,
+                                                           style=icon_button_style, disabled=True)
                                     exec(tool_effect_code(md_name, "md"), tool_ns)
 
                 with ui.layout_columns(col_widths=(5, 7), gap="20px", height="140px"):
@@ -406,7 +398,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         ax.annotate(anno,  xy=pos, color=ac, fontsize="small", weight="heavy",
                                                     horizontalalignment="center", verticalalignment="center",
                                                     zorder=10)
-                                        #if sum(pos) > 0:
                                         if pos[0] > 0:
                                             before = node.before
                                             pos = ((0.35*before.pos[0] + 0.65*node.pos[0]), node.pos[1])
@@ -465,7 +456,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 node_highlights.set(cs)
                                 arc_highlights.set(ac)
                                 disabled = input_dict["data"] is None
-
                                 tool_disable(disabled)
 
             @render.express
@@ -475,17 +465,14 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                 if view is not None:
                     if "string" in view:
                         with ui.panel_absolute(draggable=True, width="590px", **pos):
-                            with ui.panel_well():
+                            with ui.card():
                                 ui.card_header("Dataset", style=chd_style)
-                                with ui.card():#(height=270):
-                                    row, col = view["shape"]
-                                    #ui.markdown(f"```{view['name']}```: {row} rows x {col} columns\n"
-                                    #            f"```\n{view['string']}\n```")
-                                    ui.markdown(
-                                        f"<pre style='font-size:12px'><code>{view['name']}:</code>"
-                                        f" {row} rows x {col} columns<br><br>"
-                                        f"<code>{view['string'].replace('\n', '<br>')}</code></pre>"
-                                    )
+                                row, col = view["shape"]
+                                ui.markdown(
+                                    f"<pre style='font-size:12px'><code>{view['name']}:</code>"
+                                    f" {row} rows x {col} columns<br><br>"
+                                    f"<code>{view['string'].replace('\n', '<br>')}</code></pre>"
+                                )
                                 ui.input_action_button("close_data_view", "Close", width="110px")
 
                     elif "width" in view and "height" in view:
@@ -493,50 +480,38 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         fig.set_dpi(60)
                         width = int(np.minimum(view["width"]*3/5, 600))
                         height = view["height"]*3/5
-                        with ui.panel_absolute(draggable=True, width=f"{width + 90}px", **pos):
-                            with ui.panel_well():
+                        with ui.panel_absolute(draggable=True, width=f"{width + 35}px", **pos):
+                            with ui.card():
                                 ui.card_header("Figure", style=chd_style)
-                                with ui.card(height=height+20, max_height=480):
-                                    @render.plot(width=width, height=height)
-                                    def fig_view_plot():
-                                        return fig
+                                @render.plot(width=width, height=height)
+                                def fig_view_plot():
+                                    return fig
                                 ui.input_action_button("close_fig_view", "Close", width="110px")
                     elif "code" in view:
                         with ui.panel_absolute(draggable=True, width=f"550px", **pos):
-                            with ui.panel_well():
+                            with ui.card():
                                 ui.card_header("Source", style=chd_style)
                                 code = view["code"]
                                 if isinstance(code, dict):
                                     keys = ["vars", "dummy", "pipeline", "fitting"]
                                     code = '\n'.join([code[k] for k in keys])
-                                markdown = view["markdown"]
                                 clines = code.split("\n")
                                 if len(clines) > 15:
                                     clines = clines[:6] + ["... ..."] * 3 + clines[-6:]
                                     code = "\n".join(clines)
-                                with ui.card():
-                                    ui.markdown(view["markdown"])
-                                    hr(0.5)
-                                    #with ui.layout_columns(col_widths=(-10, 2)):
-                                    #    ui.input_action_link("node_view_copy", "copy", style="height:1px")
-                                    #@render.code
-                                    #def source_code_view():
-                                    #    return code
-                                    code_html = code.replace("\n", "<br>")
-                                    ui.markdown(f"<pre style='font-size:12px'><code>{code_html}</code></pre>")
+                                ui.markdown(view["markdown"])
+                                hr(0.5)
+                                code_html = code.replace("\n", "<br>")
+                                ui.markdown(f"<pre style='font-size:12px'><code>{code_html}</code></pre>")
 
                                 ui.input_action_button("close_source_view", "Close", width="110px")
                     elif "results" in view:
                         with ui.panel_absolute(draggable=True, width=f"650px", **pos):
-                            with ui.panel_well():
+                            with ui.card():
                                 ui.card_header("Model", style=chd_style)
                                 results = view["results"]
-                                with ui.card(max_height=280):
-                                    #@render.code
-                                    #def source_code_view():
-                                    #    return results
-                                    results_html = results.replace("\n", "<br>")
-                                    ui.markdown(f"<pre style='font-size:12px'><code>{results_html}</code></pre>")
+                                results_html = results.replace("\n", "<br>")
+                                ui.markdown(f"<pre style='font-size:12px'><code>{results_html}</code></pre>")
                                 ui.input_action_button("close_model_view", "Close", width="110px")
 
             @reactive.effect
@@ -613,23 +588,43 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
         
                         elif op_type == "Select columns":
                             ui.input_selectize("select_columns_selectize", "Columns",
-                                            choices=columns, selected=columns,
-                                            multiple=True)
+                                               choices=columns, selected=columns,
+                                               multiple=True)
                         elif op_type == "Sort rows":
                             ui.input_selectize("sort_columns_selectize", "Sort on columns",
-                                            choices=columns, selected=[], multiple=True,
-                                            remove_button=True)
+                                               choices=columns, selected=[], multiple=True,
+                                               remove_button=True)
                             with ui.layout_columns(col_widths=(6, 6)):
                                 ui.input_switch("sort_descending_switch", "Descending")
                                 ui.input_switch("sort_reset_switch", "Reset index")
                         elif op_type == "Boolean conditions":
-                            with ui.layout_columns(col_widths=(8, 4)):
-                                ui.input_selectize("filter_column_selectize", "Column on the left",
-                                                choices=[""] + columns)
+                            with ui.layout_columns(col_widths=(7, 5)):
+                                ui.input_selectize("filter_column_selectize", "Target variable",
+                                                   choices=[""] + columns)
                                 filter_operators = ["", "==", "!=", "<=", "<", ">=", ">", "in", "not in"]
                                 ui.input_selectize("filter_operator_selectize", "Operator",
-                                                choices=filter_operators, selected="")
-                            ui.input_text("filter_value_text", "Value on the right")
+                                                   choices=filter_operators, selected="")
+                            @render.express
+                            @reactive.event(input.filter_column_selectize)
+                            def filter_value_text_ui():
+                                show_filter_value = True
+                                col = to_selected_columns(input.filter_column_selectize(), data_in)
+                                if col != "":
+                                    if is_bool_dtype(data_in[col]):
+                                        show_filter_value = False
+                                if show_filter_value:
+                                        ui.input_text("filter_value_text", "Value(s) to compare")
+                            
+                            @reactive.effect
+                            @reactive.event(input.filter_column_selectize)
+                            def filter_operator_selectize_update():
+                                col = to_selected_columns(input.filter_column_selectize(), data_in)
+                                if col != "":
+                                    if is_bool_dtype(data_in[col]):
+                                        filter_operators = ["", "is True", "not True"]
+                                    else:
+                                        filter_operators = ["", "==", "!=", "<=", "<", ">=", ">", "in", "not in"]
+                                    ui.update_selectize("filter_operator_selectize", choices=filter_operators)
 
                             with ui.layout_columns(col_widths=(-5, 7)):
                                 ui.input_action_button("add_filter_button", "New condition")
@@ -641,11 +636,15 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             def add_filter_button_disable():
                                 cond1 = input.filter_column_selectize() == ""
                                 cond2 = input.filter_operator_selectize() == ""
-                                cond3 = str_to_values(input.filter_value_text(), sup=True) is None
+                                cond3 = False
+                                if not cond1:
+                                    col = to_selected_columns(input.filter_column_selectize(), data_in)
+                                    if not is_bool_dtype(data_in[col]):
+                                        cond3 = str_to_values(input.filter_value_text(), sup=True) is None
                                 ui.update_action_button("add_filter_button", disabled=(cond1 or cond2 or cond3))
                             
                             with ui.layout_columns(col_widths=(6, 6)):
-                                ui.input_switch("filter_select_rows_switch", "Filter rows")
+                                ui.input_switch("filter_select_rows_switch", "Filter rows", value=True)
 
                                 @render.express
                                 def filter_reset_index_ui():
@@ -883,7 +882,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             @reactive.effect
                             @reactive.event(input.add_cols_from_columns_selectize)
                             def update_formula():
-
                                 from_cols = to_selected_columns(input.add_cols_from_columns_selectize(), data_in)
                                 if input.add_cols_type_selectize() == "Arithmetic expression":
                                     terms = [f"{name_in}[{c.__repr__()}]" for c in from_cols]
@@ -905,11 +903,12 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     @reactive.effect
                     @reactive.event(input.add_filter_button, ignore_init=True)
                     def add_filter_button_action():
-                        
                         filters = op_memory.get()
+                        operator = input.filter_operator_selectize()
+                        compared_value = None if operator in ["is True", "not True"] else input.filter_value_text()
                         filters.append(dict(column=input.filter_column_selectize(),
-                                            operator=input.filter_operator_selectize(),
-                                            value=input.filter_value_text()))
+                                            operator=operator,
+                                            value=compared_value))
                         ui.update_selectize("filter_column_selectize", selected="")
                         ui.update_selectize("filter_operator_selectize", selected="")
                         ui.update_text("filter_value_text", value="")
@@ -1090,26 +1089,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Palette", pt="8px")
-                                        with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
                                             def value_counts_hexcolor():
                                                 c = color.get()
                                                 return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                            @render_bokeh(height="36px", width="100%", fill=True)
-                                            def value_counts_color_picker():
-                                                picker = ColorPicker(
-                                                    title="",
-                                                    color='#1f77b4',
-                                                    min_width=95
-                                                )
-
-                                                def update_value_counts_picker_color(attr, old, new):
-                                                    color.set(new)
-
-                                                picker.on_change('color', update_value_counts_picker_color)
-                                                return picker
+                                            ui_color_input("value_counts_color_input", "", value='#1f77b4')
+                                        
+                                        @reactive.effect
+                                        @reactive.event(input.value_counts_color_input)
+                                        def update_value_counts_color():
+                                            c = input.value_counts_color_input()
+                                            color.set(c)
                                     
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("value_counts_alpha_slider", "",
@@ -1147,27 +1138,19 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         with ui.nav_panel(None, value="hist_single_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
                                                 inline_label("Palette", pt="8px")
-                                                with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                                with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
                                                     def hist_hexcolor():
                                                         c = color.get()
                                                         return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                                    @render_bokeh(height="36px", width="100%", fill=True)
-                                                    def hist_color_picker():
-                                                        picker = ColorPicker(
-                                                            title="",
-                                                            color='#1f77b4',
-                                                            min_width=95
-                                                        )
-                                            
-                                                        def update_hist_picker_color(attr, old, new):
-                                                            color.set(new)
-
-                                                        picker.on_change('color', update_hist_picker_color)
-                                                        return picker
+                                                    ui_color_input("hist_color_input", "", value='#1f77b4')
                                         
+                                            @reactive.effect
+                                            @reactive.event(input.hist_color_input)
+                                            def update_hist_color():
+                                                c = input.hist_color_input()
+                                                color.set(c)
+
                                         with ui.nav_panel(None, value="hist_multiple_case"):
                                             with ui.layout_columns(col_widths=(6, 6)):
                                                 ui.input_selectize("hist_grouped_norm_selectize", "Normalized",
@@ -1189,9 +1172,9 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     def hist_group_by_selectize_update_ui():
 
                                         if input.hist_group_by_selectize() == "":
-                                            ui.update_navs("hist_conditional_ui", selected="hist_single_case")
+                                            ui.update_navset("hist_conditional_ui", selected="hist_single_case")
                                         else:
-                                            ui.update_navs("hist_conditional_ui", selected="hist_multiple_case")
+                                            ui.update_navset("hist_conditional_ui", selected="hist_multiple_case")
                                 
                                 elif dv_type == "KDE":
                                     with ui.layout_columns(col_widths=(3, 9)):
@@ -1218,26 +1201,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         with ui.nav_panel(None, value="kde_single_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
                                                 inline_label("Palette", pt="8px")
-                                                with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                                with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
                                                     def kde_hexcolor():
                                                         c = color.get()
                                                         return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                                    @render_bokeh(height="36px", width="100%", fill=True)
-                                                    def kde_color_picker():
-                                                        picker = ColorPicker(
-                                                            title="",
-                                                            color='#1f77b4',
-                                                            min_width=95
-                                                        )
-                                            
-                                                        def update_kde_picker_color(attr, old, new):
-                                                            color.set(new)
-
-                                                        picker.on_change('color', update_kde_picker_color)
-                                                        return picker
+                                                    ui_color_input("kde_color_input", "", value='#1f77b4')
+                                        
+                                                @reactive.effect
+                                                @reactive.event(input.kde_color_input)
+                                                def update_kde_color():
+                                                    c = input.kde_color_input()
+                                                    color.set(c)
                                         
                                         with ui.nav_panel(None, value="kde_multiple_case"):
                                             with ui.layout_columns(col_widths=(6, 6)):
@@ -1260,9 +1235,9 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     def kde_group_by_selectize_update_ui():
 
                                         if input.kde_group_by_selectize() == "":
-                                            ui.update_navs("kde_conditional_ui", selected="kde_single_case")
+                                            ui.update_navset("kde_conditional_ui", selected="kde_single_case")
                                         else:
-                                            ui.update_navs("kde_conditional_ui", selected="kde_multiple_case")
+                                            ui.update_navset("kde_conditional_ui", selected="kde_multiple_case")
 
                                 elif dv_type == "Box plot":
                                     with ui.layout_columns(col_widths=(3, 9)):
@@ -1307,26 +1282,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         with ui.nav_panel(None, value="boxplot_single_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
                                                 inline_label("Palette", pt="8px")
-                                                with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                                with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
                                                     def boxplot_hexcolor():
                                                         c = color.get()
                                                         return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                                    @render_bokeh(height="36px", width="100%", fill=True)
-                                                    def boxplot_color_picker():
-                                                        picker = ColorPicker(
-                                                            title="",
-                                                            color='#1f77b4',
-                                                            min_width=95
-                                                        )
-                                            
-                                                        def update_boxplot_picker_color(attr, old, new):
-                                                            color.set(new)
-
-                                                        picker.on_change('color', update_boxplot_picker_color)
-                                                        return picker
+                                                    ui_color_input("boxplot_color_input", "", value='#1f77b4')
+                                        
+                                                @reactive.effect
+                                                @reactive.event(input.boxplot_color_input)
+                                                def update_boxplot_color():
+                                                    c = input.boxplot_color_input()
+                                                    color.set(c)
                                         
                                         with ui.nav_panel(None, value="boxplot_multiple_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
@@ -1344,11 +1311,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     def boxplot_group_by_selectize_update_ui():
 
                                         if input.boxplot_hue_selectize() == "":
-                                            ui.update_navs("boxplot_conditional_ui",
-                                                           selected="boxplot_single_case")
+                                            ui.update_navset("boxplot_conditional_ui",
+                                                             selected="boxplot_single_case")
                                         else:
-                                            ui.update_navs("boxplot_conditional_ui",
-                                                           selected="boxplot_multiple_case")
+                                            ui.update_navset("boxplot_conditional_ui",
+                                                             selected="boxplot_multiple_case")
                                 
                                 elif dv_type == "Probability plot":
                                     with ui.layout_columns(col_widths=(4, 8)):
@@ -1363,26 +1330,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Palette", pt="8px")
-                                        with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
-                                            def probplot_hexcolor():
+                                            def proba_plot_hexcolor():
                                                 c = color.get()
                                                 return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                            @render_bokeh(height="36px", width="100%", fill=True)
-                                            def probplot_color_picker():
-                                                picker = ColorPicker(
-                                                    title="",
-                                                    color='#1f77b4',
-                                                    min_width=95
-                                                )
-                                            
-                                                def update_probplot_picker_color(attr, old, new):
-                                                    color.set(new)
-
-                                                picker.on_change('color', update_probplot_picker_color)
-                                                return picker
+                                            ui_color_input("proba_plot_color_input", "", value='#1f77b4')
+                                        
+                                        @reactive.effect
+                                        @reactive.event(input.proba_plot_color_input)
+                                        def update_bar_color():
+                                            c = input.proba_plot_color_input()
+                                            color.set(c)
 
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Opacity", pt="22px")
@@ -1451,29 +1410,30 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Y-data")
                                         ui.input_selectize("bar_ydata_selectize", "", choices=[""]+col_nums)
-                                    
+                                        inline_label("Label")
+                                        ui.input_text("bar_label_text", "", placeholder="None")
+
+                                        @reactive.effect
+                                        @reactive.event(input.bar_ydata_selectize)
+                                        def bar_labels_update():
+                                            if input.bar_ydata_selectize() != "":
+                                                ui.update_text("bar_label_text",
+                                                               placeholder=input.bar_ydata_selectize())
+
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Palette", pt="8px")
-                                        with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
                                             def bar_hexcolor():
                                                 c = color.get()
                                                 return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                            @render_bokeh(height="36px", width="100%", fill=True)
-                                            def bar_color_picker():
-                                                picker = ColorPicker(
-                                                    title="",
-                                                    color=init_color.get(),
-                                                    min_width=95
-                                                )
-                                            
-                                                def update_bar_picker_color(attr, old, new):
-                                                    color.set(new)
-
-                                                picker.on_change('color', update_bar_picker_color)
-                                                return picker
+                                            ui_color_input("bar_color_input", "", value=init_color.get())
+                                        
+                                        @reactive.effect
+                                        @reactive.event(input.bar_color_input)
+                                        def update_bar_color():
+                                            c = input.bar_color_input()
+                                            color.set(c)
                                     
                                     with ui.layout_columns(col_widths=(-6, 6)):
                                         ui.input_action_button("bar_add_button", "New bar", )
@@ -1568,6 +1528,17 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                            choices=[""]+col_nums,
                                                            multiple=True, remove_button=True,
                                                            options={"placeholder": "None", "maxItems": 2})
+                                        
+                                        inline_label("Label")
+                                        ui.input_text("line_label_text", "", placeholder="None")
+
+                                        @reactive.effect
+                                        @reactive.event(input.line_ydata_selectize)
+                                        def line_labels_update():
+                                            if input.line_ydata_selectize() != "":
+                                                ui.update_text("line_label_text",
+                                                               placeholder=input.line_ydata_selectize())
+                                                
                                     with ui.layout_columns(col_widths=(6, 6)):
                                         styles = ["solid", "dash", "dot", "dash-dot"]
                                         ui.input_selectize("line_style_selectize", "Style", choices=styles)
@@ -1585,26 +1556,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                         min=0.1, max=2, step=0.05, value=1)
 
                                         inline_label("Palette", pt="8px")
-                                        with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
                                             def line_hexcolor():
                                                 c = color.get()
                                                 return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                            @render_bokeh(height="36px", width="100%", fill=True)
-                                            def line_color_picker():
-                                                picker = ColorPicker(
-                                                    title="",
-                                                    color=init_color.get(),
-                                                    min_width=95
-                                                )
-                                            
-                                                def update_line_picker_color(attr, old, new):
-                                                    color.set(new)
-
-                                                picker.on_change('color', update_line_picker_color)
-                                                return picker
+                                            ui_color_input("line_color_input", "", value=init_color.get())
+                                        
+                                        @reactive.effect
+                                        @reactive.event(input.line_color_input)
+                                        def update_line_color():
+                                            c = input.line_color_input()
+                                            color.set(c)
                                     
                                     with ui.layout_columns(col_widths=(-6, 6)):
                                         ui.input_action_button("line_add_button", "New line", )
@@ -1653,26 +1616,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         with ui.nav_panel(None, value="scatter_single_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
                                                 inline_label("Palette", pt="8px")
-                                                with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                                with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
                                                     def scatter_hexcolor():
                                                         c = color.get()
                                                         return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                                    @render_bokeh(height="36px", width="100%", fill=True)
-                                                    def scatter_color_picker():
-                                                        picker = ColorPicker(
-                                                            title="",
-                                                            color='#1f77b4',
-                                                            min_width=95
-                                                        )
-                                            
-                                                        def update_scatter_picker_color(attr, old, new):
-                                                            color.set(new)
-
-                                                        picker.on_change('color', update_scatter_picker_color)
-                                                        return picker
+                                                    ui_color_input("scatter_color_input", "", value='#1f77b4')
+                                        
+                                            @reactive.effect
+                                            @reactive.event(input.scatter_color_input)
+                                            def update_scatter_color():
+                                                c = input.scatter_color_input()
+                                                color.set(c)
                                         
                                         with ui.nav_panel(None, value="scatter_multiple_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
@@ -1692,11 +1647,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         color_data = input.scatter_color_data_selectize()
 
                                         if color_data == "":
-                                            ui.update_navs("scatter_conditional_ui",
-                                                           selected="scatter_single_case")
+                                            ui.update_navset("scatter_conditional_ui",
+                                                             selected="scatter_single_case")
                                         else:
-                                            ui.update_navs("scatter_conditional_ui",
-                                                           selected="scatter_multiple_case")
+                                            ui.update_navset("scatter_conditional_ui",
+                                                             selected="scatter_multiple_case")
                                             
                                             if color_data in col_cats:
                                                 cmaps, cmap = cat_cmaps, "tab10"
@@ -1733,26 +1688,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         with ui.nav_panel(None, value="regplot_single_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
                                                 inline_label("Palette", pt="8px")
-                                                with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-
+                                                with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
                                                     def regplot_hexcolor():
                                                         c = color.get()
                                                         return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                                    @render_bokeh(height="36px", width="100%", fill=True)
-                                                    def regplot_color_picker():
-                                                        picker = ColorPicker(
-                                                            title="",
-                                                            color='#1f77b4',
-                                                            min_width=95
-                                                        )
-                                            
-                                                        def update_regplot_picker_color(attr, old, new):
-                                                            color.set(new)
-
-                                                        picker.on_change('color', update_regplot_picker_color)
-                                                        return picker
+                                                    ui_color_input("regplot_color_input", "", value='#1f77b4')
+                                        
+                                                @reactive.effect
+                                                @reactive.event(input.regplot_color_input)
+                                                def update_regplot_color():
+                                                    c = input.regplot_color_input()
+                                                    color.set(c)
                                         
                                         with ui.nav_panel(None, value="regplot_multiple_case"):
                                             with ui.layout_columns(col_widths=(3, 9)):
@@ -1810,11 +1757,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         color_data = input.regplot_color_data_selectize()
 
                                         if color_data == "":
-                                            ui.update_navs("regplot_conditional_ui",
-                                                           selected="regplot_single_case")
+                                            ui.update_navset("regplot_conditional_ui",
+                                                             selected="regplot_single_case")
                                         else:
-                                            ui.update_navs("regplot_conditional_ui",
-                                                           selected="regplot_multiple_case")
+                                            ui.update_navset("regplot_conditional_ui",
+                                                             selected="regplot_multiple_case")
                                             cmaps, cmap = cat_cmaps, "tab10"
                                             ui.update_selectize("regplot_cmap_selectize",
                                                                 choices=cmaps, selected=cmap)
@@ -1862,26 +1809,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Palette", pt="8px")
-                                        with ui.layout_columns(col_widths=(6, 6), gap="2px"):
-                                    
+                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
                                             def ac_plot_hexcolor():
                                                 c = color.get()
                                                 return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-
-                                            @render_bokeh(height="36px", width="100%", fill=True)
-                                            def ac_plot_color_picker():
-                                                picker = ColorPicker(
-                                                    title="",
-                                                    color='#1f77b4',
-                                                    min_width=95
-                                                )
-                                            
-                                                def update_ac_plot_picker_color(attr, old, new):
-                                                    color.set(new)
-
-                                                picker.on_change('color', update_ac_plot_picker_color)
-                                                return picker
+                                            ui_color_input("ac_plot_color_input", "", value='#1f77b4')
+                                        
+                                        @reactive.effect
+                                        @reactive.event(input.ac_plot_color_input)
+                                        def update_ac_plot_color():
+                                            c = input.ac_plot_color_input()
+                                            color.set(c)
 
                                     @reactive.effect
                                     @reactive.event(input.ac_plot_type_selectize)
@@ -1936,8 +1875,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     def bar_add_button_action():
                         
                         bars = dv_memory.get()
-                        bars.append(dict(ydata=input.bar_ydata_selectize(), color=color.get()))
+                        bars.append(dict(ydata=input.bar_ydata_selectize(),
+                                         label=input.bar_label_text().strip(),
+                                         color=color.get()))
                         ui.update_selectize("bar_ydata_selectize", selected="")
+                        ui.update_text("bar_label_text", value="")
 
                         index = default_colors.index(init_color.get())
                         init_color.set(default_colors[(index + 1) % len(default_colors)])
@@ -1949,6 +1891,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         
                         lines = dv_memory.get()
                         lines.append(dict(ydata=input.line_ydata_selectize(),
+                                          label=input.line_label_text().strip(),
                                           xdata=input.line_xdata_selectize(),
                                           margin=input.line_margin_data_selectize(),
                                           color=color.get(),
@@ -1964,6 +1907,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                         ui.update_slider("line_width_slider", value=1.5)
                         ui.update_slider("line_marker_scale_slider", value=1)
+
+                        ui.update_text("line_label_text", value="")
 
                         index = default_colors.index(init_color.get())
                         init_color.set(default_colors[(index + 1) % len(default_colors)])
@@ -2074,7 +2019,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         ui.markdown(f"#### {md_type}")
                         with ui.navset_hidden(id="model_page_navset"):
                             with ui.nav_panel("model_page1"):
-                                if md_type == "Sklearn models":
+                                if md_type == "Scikit-learn models":
                                     ui.markdown("**Step 1: specify variables**")
 
                                 ui.input_selectize("model_dependent_selectize", "Dependent variable",
@@ -2246,7 +2191,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     else:
                                         mds_dict["type"] = "Regressor"
 
-                        if md_type == "Sklearn models":
+                        if md_type == "Scikit-learn models":
                             with ui.layout_columns(col_widths=(5, -2, 5)):
                                 ui.input_action_button("sklearn_page_back_button", "Back", disabled=True)
                                 ui.input_action_button("sklearn_page_next_button", "Next", disabled=True)
@@ -2312,8 +2257,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     @reactive.effect
                     def sklearn_page_update():
                         page = md_page.get()
-                        ui.update_navs("model_page_navset",
-                                    selected=f"model_page{md_page.get()}")
+                        ui.update_navset("model_page_navset",
+                                         selected=f"model_page{md_page.get()}")
                         ui.update_action_button("sklearn_page_back_button", disabled=page < 2)
 
                         if page == 1:
@@ -2512,7 +2457,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     f"{'\n'.join(imports)}\n\n"
                                     f"{code}"
                                 )
-                        elif md_type == "Sklearn models":
+                        elif md_type == "Scikit-learn models":
                             @render.code
                             def sklearn_model_code_display():
                                 page = md_page.get()
@@ -2810,7 +2755,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
         @reactive.event(*(save_buttons + cancel_buttons))
         def node_to_canvas_panel():
 
-            ui.update_navs("main", selected="canvas_panel")
+            ui.update_navset("main", selected="canvas_panel")
             ops.set(dict(type=None, source=None, data_out=None))
             dvs.set(dict(type=None, source=None, fig=None, width=640, height=480))
             mds.set(dict(type="", source={}, results=None, outputs=None, memory={}))

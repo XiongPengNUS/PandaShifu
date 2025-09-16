@@ -43,3 +43,5 @@ table_styles =  [
 hc_style = ("font-size:10pt;border:1px solid;"
             "font-family:monospace;"
             "margin-top:6px;padding:3px;padding-left:9px")
+
+icon_button_style = "padding:0px;padding-top:5px;padding-bottom:5px"
