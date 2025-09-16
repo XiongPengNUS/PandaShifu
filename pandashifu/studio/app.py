@@ -560,17 +560,17 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         if op_type == "Value counts operations":
                             count_choices = columns
                             ui.input_selectize("counts_ops_selectize", "Columns",
-                                            choices=count_choices, selected=[],
-                                            multiple=True)
+                                               choices=count_choices, selected=[],
+                                               multiple=True)
                             
                             @render.express(inline=True)
                             def counts_ops_unstack_ui():
                                 selected = list(input.counts_ops_selectize())
                                 maxItems = len(selected) - 1 if len(selected) > 1 else 0
                                 ui.input_selectize("counts_ops_unstack_selectize", "Unstack levels",
-                                                choices=selected, selected=[],
-                                                multiple=True, remove_button=True,
-                                                options={"placeholder": "None", "maxItems": maxItems})
+                                                   choices=selected, selected=[],
+                                                   multiple=True, remove_button=True,
+                                                   options={"placeholder": "None", "maxItems": maxItems})
 
                             @render.express(inline=True)
                             def counts_ops_sort_by_ui():
@@ -608,19 +608,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             @reactive.event(input.filter_column_selectize)
                             def filter_value_text_ui():
                                 show_filter_value = True
-                                col = to_selected_columns(input.filter_column_selectize(), data_in)
-                                if col != "":
-                                    if is_bool_dtype(data_in[col]):
-                                        show_filter_value = False
+                                col = input.filter_column_selectize()
+                                if col in col_nbs and col not in col_nums:
+                                    show_filter_value = False
                                 if show_filter_value:
-                                        ui.input_text("filter_value_text", "Value(s) to compare")
+                                    ui.input_text("filter_value_text", "Value(s) to compare")
                             
                             @reactive.effect
                             @reactive.event(input.filter_column_selectize)
                             def filter_operator_selectize_update():
-                                col = to_selected_columns(input.filter_column_selectize(), data_in)
+                                col = input.filter_column_selectize()
                                 if col != "":
-                                    if is_bool_dtype(data_in[col]):
+                                    if col in col_nbs and col not in col_nums:
                                         filter_operators = ["", "is True", "not True"]
                                     else:
                                         filter_operators = ["", "==", "!=", "<=", "<", ">=", ">", "in", "not in"]
@@ -638,8 +637,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 cond2 = input.filter_operator_selectize() == ""
                                 cond3 = False
                                 if not cond1:
-                                    col = to_selected_columns(input.filter_column_selectize(), data_in)
-                                    if not is_bool_dtype(data_in[col]):
+                                    col = input.filter_column_selectize()
+                                    if not (col in col_nbs and col not in col_nums):
                                         cond3 = str_to_values(input.filter_value_text(), sup=True) is None
                                 ui.update_action_button("add_filter_button", disabled=(cond1 or cond2 or cond3))
                             
