@@ -512,11 +512,12 @@ def operation_source(op, name, data, ui_input, memory):
             
             strategy = ui_input.over_sampling_strategy_selectize()
             if strategy != "auto" and strategy != "":
-                kwargs.append(f"strategy={strategy.__repr__()}")
+                kwargs.append(f"sampling_strategy={strategy.__repr__()}")
             
             k_neighbors = ui_input.over_sampling_k_neighbors_numeric()
             if method != "Random over-sampling" and k_neighbors != 5:
-                kwargs.append(f"k_neighbors={k_neighbors}")
+                os_param = "k_neighbors" if method == "SMOTE" else "n_neighbors"
+                kwargs.append(f"{os_param}={k_neighbors}")
             
             kwargs.append("random_state=0")
 
@@ -1449,7 +1450,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
                 kn_str = str_to_numstr(ui_input.sklearn_over_sampling_k_neighbors())
                 kn = eval(kn_str) if isinstance(kn_str, str) else []
                 if len(kn) == 1:
-                    os_kwargs.append(f"k_neighbors={kn[0]}")
+                    os_kwargs.append(f"{os_param}={kn[0]}")
                 if len(kn) > 1:
                     params.append(f"    'os__{os_param}': {kn_str}")
 
