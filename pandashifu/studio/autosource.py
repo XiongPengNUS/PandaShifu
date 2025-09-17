@@ -522,7 +522,7 @@ def operation_source(op, name, data, ui_input, memory):
 
             code = (
                 f"y = {name}[{target.__repr__()}]\n"
-                f"x = data[{features}]\n"
+                f"x = {name}[{features}]\n"
                 f"os = {os_model}({', '.join(kwargs)})\n"
                 f"{left}pd.concat(os.fit_resample(x, y), axis=1)"
                 f"{result}"
@@ -1046,14 +1046,14 @@ def visual_source(dv, name, data, ui_input, color, memory):
             xdata_code = f"{name}{each_code}[{xdata.__repr__()}]" if xdata != "" else f"{name}{each_code}.index"
             ydata_code = f"{name}{each_code}[{ydata.__repr__()}]"
             
-            size_data = to_selected_columns(ui_input.scatter_size_data_selectize(), data)
+            size_col = to_selected_columns(ui_input.scatter_size_data_selectize(), data)
             scale = ui_input.scatter_size_scale_slider()
             multiplier = 25**(scale-1)
-            if size_data == "":
+            if size_col == "":
                 size_code = "" if scale == 1 else f", s={36*multiplier:.3f}"
             else:
                 multi_code = "" if multiplier == 1 else f"*{multiplier:.3f}"
-                size_code = f", s={name}{each_code}[{size_data.__repr__()}]{multi_code}"
+                size_code = f", s={name}{each_code}[{size_col.__repr__()}]{multi_code}"
                 
             alpha = ui_input.scatter_alpha_slider()
             alpha_code = f", alpha={alpha}"
@@ -1070,18 +1070,33 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     f"plt.colorbar()\n"
                 )
             elif color_data in col_cats:
-                color_col_code = f"{name}[{to_selected_columns(color_data, data).__repr__()}]"
+                color_col = to_selected_columns(color_data, data)
+                color_col_code = f"{name}[{color_col.__repr__()}]"
                 label_code = ", label=cat"
+                scatter_legend_code = (
+                    f"plt.legend(title={color_data.__repr__()}, "
+                    f"loc={legend_loc.__repr__()}{font_code})\n"
+                )
+                continue_code = ""
+                if size_col != "":
+                    if data[size_col].isnull().any():
+                        continue_code = (
+                            f"    if {name}_each[{size_col.__repr__()}].isnull().any():\n"
+                            "        continue\n"
+                        )
+                        if data.groupby(color_col)[size_col].apply(lambda x: x.isnull().any()).all():
+                            scatter_legend_code = ""
                 plot_code = (
-                    f"colors = plt.cm.{cmap}.colors\n"
-                    "nc = len(colors)\n"
+                    f"fig.gca().set_prop_cycle(cycler('color', plt.cm.{cmap}.colors))\n"
                     f"for i, cat in enumerate({color_col_code}.unique()):\n"
                     f"    {name}_each = {name}.loc[{color_col_code} == cat]\n"
-                    f"    plt.scatter({xdata_code}, {ydata_code}{size_code}, color=colors[i%nc]"
+                    f"{continue_code}"
+                    f"    plt.scatter({xdata_code}, {ydata_code}{size_code}"#, color=colors[i%nc]"
                     f"{alpha_code}{label_code})\n"
-                    f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{font_code})\n"
+                    f"{scatter_legend_code}"
                 )
-    
+                imports.append("from matplotlib import cycler")
+
     elif dv == "Regression plot":
         xdata = to_selected_columns(ui_input.regplot_xdata_selectize(), data)
         ydata = to_selected_columns(ui_input.regplot_ydata_selectize(), data)
