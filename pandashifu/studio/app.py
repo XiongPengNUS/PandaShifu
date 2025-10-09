@@ -468,11 +468,14 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             with ui.card():
                                 ui.card_header("Dataset", style=chd_style)
                                 row, col = view["shape"]
-                                ui.markdown(
-                                    f"<pre style='font-size:12px'><code>{view['name']}:</code>"
-                                    f" {row} rows x {col} columns<br><br>"
-                                    f"<code>{view['string'].replace('\n', '<br>')}</code></pre>"
-                                )
+                                #ui.markdown(
+                                #    f"<pre style='font-size:12px'><code>{view['name']}:</code>"
+                                #    f" {row} rows x {col} columns<br><br>"
+                                #    f"<code>{view['string'].replace('\n', '<br>')}</code></pre>"
+                                #)
+                                @render.code
+                                def data_view_code():
+                                    return f"{view['name']}: {row} rows x {col} columns\n\n{view['string']}"
                                 ui.input_action_button("close_data_view", "Close", width="110px")
 
                     elif "width" in view and "height" in view:
@@ -501,17 +504,22 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     code = "\n".join(clines)
                                 ui.markdown(view["markdown"])
                                 hr(0.5)
-                                code_html = code.replace("\n", "<br>")
-                                ui.markdown(f"<pre style='font-size:12px'><code>{code_html}</code></pre>")
-
+                                #code_html = code.replace("\n", "<br>")
+                                #ui.markdown(f"<pre style='font-size:12px'><code>{code_html}</code></pre>")
+                                @render.code
+                                def source_view_code():
+                                    return code
                                 ui.input_action_button("close_source_view", "Close", width="110px")
                     elif "results" in view:
                         with ui.panel_absolute(draggable=True, width=f"650px", **pos):
                             with ui.card():
                                 ui.card_header("Model", style=chd_style)
                                 results = view["results"]
-                                results_html = results.replace("\n", "<br>")
-                                ui.markdown(f"<pre style='font-size:12px'><code>{results_html}</code></pre>")
+                                #results_html = results.replace("\n", "<br>")
+                                #ui.markdown(f"<pre style='font-size:12px'><code>{results_html}</code></pre>")
+                                @render.code
+                                def model_view_code():
+                                    return results
                                 ui.input_action_button("close_model_view", "Close", width="110px")
 
             @reactive.effect
@@ -2030,11 +2038,26 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                    choices=[""], multiple=True, remove_button=True,
                                                    options={"placeholder": "None"})
                                 
+                                if md_type == "Scikit-learn models":
+                                    ui.input_switch("model_formula_switch", "Edit formula")
+
+                                with ui.navset_hidden(id="model_formula_ui_navset"):
+                                    with ui.nav_panel(None, value="model_formula_off"):
+                                        None
+                                    with ui.nav_panel(None, value="model_formula_on"):
+                                        ui.input_text("statsmodels_formula_text", "Formula")
+                                    
+                                @reactive.effect
+                                @reactive.event(input.model_formula_switch)
+                                def model_formula_ui_navset_update():
+                                    if input.model_formula_switch():
+                                        ui.update_navset("model_formula_ui_navset", selected="model_formula_on")
+                                    else:
+                                        ui.update_navset("model_formula_ui_navset", selected="model_formula_off")
+
                                 if md_type == "Statsmodels":
                                     ui.input_selectize("statsmodels_type_selectize", "Model type",
-                                                       choices=["ols", "logit"])
-                                    ui.input_text("statsmodels_formula_text", "Formula")
-
+                                                       choices=["ols", "logit"])                                    
                                     hr()
                                     ui.input_text("statsmodels_output_text", "Output name",
                                                   placeholder="Key in a variable name...")
@@ -2088,6 +2111,14 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 hr()
                                 ui.input_selectize("sklearn_model_selectize", "Model selection",
                                                    choices=[""])
+                                
+                                @reactive.effect
+                                @reactive.event(input.sklearn_model_selectize)
+                                def sklearn_default_scaling_update():
+                                    model_name = input.sklearn_model_selectize()
+                                    if model_name in ["LogisticRegression", "Lasso", "Ridge"]:
+                                        ui.update_selectize("sklearn_scaling_selectize",
+                                                            selected="StandardScaler")
                                 
                                 @render.express
                                 def sklearn_model_hypers_ui():
@@ -2199,7 +2230,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     #@render.code
                     #@reactive.event(input.md_debug)
                     #def md_debug_display():
-                    #    return str(mds.get()["source"])
+                    #    return str(mds.get()["memory"])
 
                     @reactive.effect
                     @reactive.event(input.model_dependent_selectize, ignore_init=True)
@@ -2234,13 +2265,21 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     input.model_independent_selectize,
                                     input.model_numeric_cats_selectize, ignore_init=True)
                     def statsmodels_formula_text_update():
-                        if md_selected.get() == "Statsmodels":
-                            dependent = input.model_dependent_selectize()
-                            independents = input.model_independent_selectize()
-                            num_cats = input.model_numeric_cats_selectize()
-                            independents = [f"C({c})" if c in num_cats else c for c in independents]
-                            if dependent != "" and independents != "":
-                                formula = f"{dependent} ~ {' + '.join(independents)}"
+                        #if md_selected.get() == "Scikit-learn models":
+                        #    if not input.model_formula_switch():
+                        #        return
+                        dependent = input.model_dependent_selectize()
+                        independents = input.model_independent_selectize()
+                        num_cats = input.model_numeric_cats_selectize()
+                        independents = [f"C({c})" if c in num_cats else c for c in independents]
+
+                        if independents != "":
+                            if md_selected.get() == "Statsmodels":
+                                if dependent != "":
+                                    formula = f"{dependent} ~ {' + '.join(independents)}"
+                                    ui.update_text("statsmodels_formula_text", value=formula)
+                            else:
+                                formula = f"{' + '.join(independents)}"
                                 ui.update_text("statsmodels_formula_text", value=formula)
 
                     @reactive.effect
@@ -2263,7 +2302,15 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         if page == 1:
                             predicted = input.model_dependent_selectize()
                             predictors = input.model_independent_selectize()
-                            disabled = predicted == "" or len(predictors) == 0
+                            formula = input.statsmodels_formula_text().strip() 
+                            formula_switch = input.model_formula_switch()
+
+                            memory = mds.get()["memory"]
+                            if formula_switch and "formua_err" in memory:
+                                disabled = predicted == "" or formula == "" or memory["formula_err"] is not None    
+                            else:
+                                disabled = predicted == "" or len(predictors) == 0
+
                         elif page == 2:
                             disabled = input.sklearn_model_selectize() == ""
                         elif page == 3:
@@ -2495,46 +2542,62 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         else:
                             page = md_page.get()
                             columns = data.columns.tolist()
-                            if page == 1:
-                                row, col = data.shape
-                                table_width = len(data.__repr__().split('\n')[0]) * 72 // 96
-                                with ui.layout_column_wrap(width=f"{table_width}px",
-                                                           fixed_width=True, fill=False, fillable=False):
-                                    @render.table()
-                                    def model_data_preview():
-                                        table = display_table(data, 16).style.format(precision=4)
-                                        table.set_caption(f"{row} rows x {col} columns")
-                                        
-                                        styles = table_styles.copy()
-                                        predicted = input.model_dependent_selectize()
-                                        if predicted != "":
-                                            col_index = columns.index(predicted)
-                                            c = "#ffe7e7"
-                                            styles.append(dict(selector=f"td.col{col_index}",
-                                                               props=[("background-color", c)]))
-                                        predictors = input.model_independent_selectize()
-                                        c = "#eae7ff"
-                                        for p in predictors:
-                                            col_index = columns.index(p)
-                                            styles.append(dict(selector=f"td.col{col_index}",
-                                                               props=[("background-color", c)]))
-
-                                        return table.set_table_styles(styles)
-                                    
+                            if page == 1:    
                                 current_imports = mds_dict["source"]["imports"][1]
                                 current_code = mds_dict["source"]["code"][1]
                                 sklearn_ns = {}
                                 if len(current_imports) > 0:
                                     exec('\n'.join(current_imports), sklearn_ns)
+
+                                mds_dict["memory"]["formula_err"] = None
                                 if current_code != "":
                                     name = node["name"]
                                     #exec(f"{name} = data")
                                     sklearn_ns[name] = data
-                                    exec(current_code, sklearn_ns)
-                                    mds_dict["memory"]["x"] = eval("x", sklearn_ns)
-                                    mds_dict["memory"]["y"] = eval("y", sklearn_ns)
-                                    if "to_dummies = " in current_code:
-                                        mds_dict["memory"]["to_dummies"] = eval("to_dummies", sklearn_ns)
+                                    try:
+                                        exec(current_code, sklearn_ns)
+                                        mds_dict["memory"]["x"] = eval("x", sklearn_ns)
+                                        mds_dict["memory"]["y"] = eval("y", sklearn_ns)
+                                        if "to_dummies = " in current_code:
+                                            mds_dict["memory"]["to_dummies"] = eval("to_dummies", sklearn_ns)
+                                        
+                                    except Exception as err:
+                                        mds_dict["memory"]["formula_err"] = err
+                                        #print(err)
+
+                                        #@render.ui
+                                        #def sklearn_formula_error():
+                                        #    return ui_block(str(err), "danger")
+                                
+                                if mds_dict["memory"]["formula_err"] is None:
+                                    row, col = data.shape
+                                    table_width = len(data.__repr__().split('\n')[0]) * 72 // 96
+                                    with ui.layout_column_wrap(width=f"{table_width}px",
+                                                               fixed_width=True, fill=False, fillable=False):
+                                        @render.table()
+                                        def model_data_preview():
+                                            table = display_table(data, 16).style.format(precision=4)
+                                            table.set_caption(f"{row} rows x {col} columns")
+                                        
+                                            styles = table_styles.copy()
+                                            predicted = input.model_dependent_selectize()
+                                            if predicted != "":
+                                                col_index = columns.index(predicted)
+                                                c = "#ffe7e7"
+                                                styles.append(dict(selector=f"td.col{col_index}",
+                                                                   props=[("background-color", c)]))
+                                            predictors = input.model_independent_selectize()
+                                            c = "#eae7ff"
+                                            for p in predictors:
+                                                col_index = columns.index(p)
+                                                styles.append(dict(selector=f"td.col{col_index}",
+                                                                   props=[("background-color", c)]))
+
+                                            return table.set_table_styles(styles)
+                                else:
+                                    @render.ui
+                                    def sklearn_formula_error():
+                                        return ui_block(str(mds_dict["memory"]["formula_err"]), "danger")
 
                             elif page == 2:
                                 @render.ui

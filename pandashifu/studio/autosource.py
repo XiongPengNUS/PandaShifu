@@ -1387,30 +1387,39 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
 
     cat_predictors = []
     if predicted != "" and len(predictors) > 0:
-        _, cat_predictors, _ = num_cat_labels(data[to_selected_columns(predictors, data)])
-        cat_predictors += list(ui_input.model_numeric_cats_selectize())
-
-        if len(cat_predictors) > 0:
-            imports_step1.extend(["from sklearn.preprocessing import OneHotEncoder",
-                                  "from sklearn.compose import ColumnTransformer"])
-            dummy_code = (
-                f"\n\ncats = {cat_predictors.__repr__()}\n"
-                "ohe = OneHotEncoder(drop='first', sparse_output=False)\n"
-                "to_dummies = ColumnTransformer(transformers=[('cats', ohe, cats)],\n"
-                "                               remainder='passthrough')"
+        if ui_input.model_formula_switch():
+            independent_vars_code = (
+                f"x = dmatrix({ui_input.statsmodels_formula_text().strip().__repr__()}, {name},\n"
+                "            return_type='dataframe').drop(columns='Intercept')"
             )
-        else:
             dummy_code = ""
+            imports_step1.extend(["import numpy as np",
+                                  "from patsy import dmatrix"])
+        else:
+            independent_vars_code = f"x = {name}[{predictors.__repr__()}]"
+            _, cat_predictors, _ = num_cat_labels(data[to_selected_columns(predictors, data)])
+            cat_predictors += list(ui_input.model_numeric_cats_selectize())
+
+            if len(cat_predictors) > 0:
+                imports_step1.extend(["from sklearn.preprocessing import OneHotEncoder",
+                                      "from sklearn.compose import ColumnTransformer"])
+                dummy_code = (
+                    f"\n\ncats = {cat_predictors.__repr__()}\n"
+                    "ohe = OneHotEncoder(drop='first', sparse_output=False)\n"
+                    "to_dummies = ColumnTransformer(transformers=[('cats', ohe, cats)],\n"
+                    "                               remainder='passthrough')"
+                )
+            else:
+                dummy_code = ""
         
         #y = data[predicted]
         #if (not is_numeric_dtype(y)) or is_bool_dtype(y):
         #    mds_dict["type"] = "Classifier"
         #else:
         #    mds_dict["type"] = "Regressor"
-
         code_step1 = (
             f"y = {name}[{predicted.__repr__()}]\n"
-            f"x = {name}[{predictors.__repr__()}]"
+            f"{independent_vars_code}"
             f"{dummy_code}"
         )
 
