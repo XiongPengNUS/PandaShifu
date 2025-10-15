@@ -1,22 +1,22 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import seaborn as sns
 from scipy.stats import binom, norm, t, linregress, multivariate_normal
 
 from shiny import reactive
 from shiny.express import render, ui, input
 
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import root_mean_squared_error as rmse
 
 
 chd_style = 'color:white; background:#007bc2 !important;'
@@ -62,12 +62,43 @@ def ci_equations(param, stats):
             '</ul>')
 
 
+def mysterious_prf(x):
+
+    return ((1.2 - 0.2*x) * np.sin(9*x + 0.8*x**0.5) + 4*x) * 4
+
+
 def mysterious(size):
 
     x = np.random.rand(size)
-    y = ((1.2 - 0.2*x) * np.sin(11*x) + 4*x) * 4 + np.random.randn(size)
+    #y = ((1.2 - 0.2*x) * np.sin(11*x) + 4*x) * 4 + np.random.randn(size)
+    y = mysterious_prf(x) + 2.5*np.random.randn(size)
 
     return pd.DataFrame({'y': y, 'x': x})
+
+def reg_pred(data, model, params={}):
+
+    x, y = data[['x']], data['y']
+    pipe = None
+    params = {key:value for key, value in params.items() if value is not None}
+    if model == 'Polynomial regression':
+        k = params['degree']
+        pipe = Pipeline([('poly',  PolynomialFeatures(degree=k, include_bias=False)),
+                         ('reg',  LinearRegression(fit_intercept=True))])
+    elif model == 'K-nearest neighbors':
+        pipe = Pipeline([('Scaler', StandardScaler()),
+                         ('reg', KNeighborsRegressor(**params))])
+    elif model == 'Decision tree':
+        pipe = Pipeline([('reg', DecisionTreeRegressor(random_state=0, **params))])
+    elif model == 'Bagged trees':
+        pipe = Pipeline([('reg', RandomForestRegressor(random_state=0, n_estimators=80, **params))])
+    
+    if pipe is not None:
+        pipe.fit(x, y)
+        x_pred = pd.DataFrame({'x': np.arange(0, 1.01, 0.01)})
+        y_pred = pipe.predict(x_pred)
+
+        return x_pred, y_pred, pipe
+
 
 
 def two_class_data(n):
@@ -126,8 +157,9 @@ def two_class_pred(data, model, params={}):
                          ('cls', KNeighborsClassifier(**params))])
     elif model == 'Decision tree':
         pipe = Pipeline([('cls', DecisionTreeClassifier(random_state=0, **params))])
-    elif model == 'Random forest':
-        pipe = Pipeline([('cls', RandomForestClassifier(random_state=0, n_estimators=200,**params))])
+    elif model == 'Bagged trees':
+        pipe = Pipeline([('cls', RandomForestClassifier(random_state=0, n_estimators=80,
+                                                        max_features=1.0, **params))])
     
     if pipe is not None:
         pipe.fit(x, y)
@@ -234,14 +266,14 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 '```\n\n'
                                                 f'<code>{cdf}</code>\n'))
 
-                    ui.markdown(('The binomial distribution is a discrete probability distribution, '
-                                'defined to be the number of successes in a sequence of $n$ '
-                                'independent experiments, and each experiment has a Boolean valued '
-                                'outcome: success (with probability $p$) or failure (with '
-                                'probability $1-p$). The graphs below show the PMF and CDF of '
-                                'such a binomial distributed random variable $X$.'))
+                    ui.markdown('The binomial distribution is a discrete probability distribution, '
+                                'defined to be the number of successes, denoted by $X$, in a sequence '
+                                'of $n$ independent experiments, and each experiment has a Boolean '
+                                'valued outcome: success (with probability $p$) or failure (with '
+                                'probability $1-p$). The graphs below show the PMF and CDF of such a '
+                                'binomial distributed random variable $X$.')
 
-                    @render.plot
+                    @render.plot(width=550, height=600)
                     @reactive.event(input.drv_prop, input.drv_num, input.drv_m)
                     def update_binom_plot():
                         p = input.drv_prop()
@@ -303,7 +335,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     '</ul>'),
                     'danger')
             
-            with ui.card(height='650px'):
+            with ui.card(height='620px'):
                 ui.card_header('Standard normal distribution', style=chd_style)
                 with ui.layout_sidebar():
                     with ui.sidebar(bg='#f8f8f8', width='350px'):  
@@ -338,7 +370,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 'to illustrate the concepts of PDF, CDF, PPF, in the following '
                                 'figure.'))
 
-                    @render.plot
+                    @render.plot(width=550, height=400)
                     @reactive.event(input.crv_x)
                     def update_norm_plot():
                         
@@ -418,7 +450,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 'Exact': [mean_exact, std_exact],
                                                 'Statistics': [mean_smp, std_smp]})
 
-                    @render.plot
+                    @render.plot(width=550, height=550)
                     @reactive.event(input.sm_size, input.sm_dtype)
                     def update_sm_plot():
                         
@@ -488,7 +520,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 'calculated using the sample data and compared with the true '
                                 'population parameter.'))
                     
-                    @render.plot
+                    @render.plot(width=550, height=290)
                     @reactive.event(input.ci_size, input.ci_level, input.ci_info)
                     def update_ci_plot():
                         
@@ -539,7 +571,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         'proportion** is given as follows. ')
             ui_block(ci_equations('proportion', 'sigma'), 'danger')
 
-            with ui.card(height='550px'):
+            with ui.card(height='500px'):
                 ui.card_header('Sample size for polling', style=chd_style)
                 with ui.layout_sidebar():
                     with ui.sidebar(bg='#f8f8f8', width='350px'):  
@@ -556,7 +588,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 'the confidence level $1-\\alpha$, affect the credibility of a poll, '
                                 'in terms of the margin of error.'))
                     
-                    @render.plot
+                    @render.plot(width=550, height=290)
                     @reactive.event(input.polling_size, input.polling_prop, input.polling_level)
                     def update_polling_plot():
 
@@ -647,7 +679,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                     with ui.card(height='400px'):
                         ui.card_header('The $P$-value approach to hypothesis testing',
-                                    style=chd_style)
+                                       style=chd_style)
                         with ui.layout_sidebar():
                             with ui.sidebar(bg='#f8f8f8', width='350px'):
                                 ui.input_slider(id='t_test_value', label='Test statistic: value',
@@ -655,7 +687,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_slider(id='t_test_size', label='Sample size:',
                                                 min=5, max=200, value=25, step=1)
                         
-                            @render.plot
+                            @render.plot(width=520, height=320)
                             @reactive.event(input.ht_mean_test_type, 
                                             input.t_test_value, input.t_test_size)
                             def update_t_test_type():
@@ -783,7 +815,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_slider(id='z_test_size', label='Sample size:',
                                                 min=5, max=200, value=25, step=1)
                         
-                            @render.plot
+                            @render.plot(width=520, height=320)
                             @reactive.event(input.ht_prop_test_type, 
                                             input.z_test_value, input.z_test_size)
                             def update_z_test_type():
@@ -858,7 +890,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                      'Sample regression function',
                                      'Residuals']
                         ui.input_selectize(id='display_reg', label='Notations',
-                                        choices=notations, selected=notations[0], multiple=True)
+                                           choices=notations, selected=notations[0], multiple=True)
                         ui.input_action_button(id='data_gen', label='Generate new dataset')
                     
                     ui.markdown('A simple linear regression model $y = \\beta_0 + \\beta_1 + u$ is '
@@ -879,7 +911,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         yd = 1 + 5*xd + np.random.normal(size=ns)
                         samples.set((xd, yd))
 
-                    @render.plot
+                    @render.plot(width=550, height=480)
                     @reactive.event(input.display_reg, input.data_gen)
                     def update_reg_plot():
                         
@@ -941,7 +973,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 'components follow the equation $\\text{SST} = \\text{SSE} + '
                                 '\\text{SSR}$.')
                     
-                    @render.plot
+                    @render.plot(width=550, height=480)
                     @reactive.event(input.r_square_comp, input.error_scale, input.data_gen)
                     def update_rsquare_plot():
                         
@@ -996,7 +1028,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         "variance.")
 
             with ui.card(height='850px'):
-                ui.card_header('Bias-variance tradeoff in polynomial regression', style=chd_style)
+                ui.card_header('Bias-variance tradeoff in regression models', style=chd_style)
                 with ui.layout_sidebar():
                     with ui.sidebar(bg='#f8f8f8', width='350px'):
                         with ui.layout_columns(col_widths=(8, 4)):
@@ -1005,119 +1037,175 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                choices=[30, 50, 100, 200], selected=50)
                         ui.input_action_button('polyreg_gen', 'Repeat the experiment')
                         
-                        model_choices = ["None", "Polynomial regression", "K-nearest neighbors",
-                                         "Decision tree", "Random forest"]
-                        ui.input_selectize("reg_model", "Regression model:", choices=model_choices)
-                        displays = ['Training data', 'Test data', 'Population Regression Function']
+                        displays = ['Population regression function', 'Training data', 'Test data']
                         ui.input_selectize(id='polyreg_displays', label='Display options',
-                                           choices=displays, selected=displays[0], multiple=True)
+                                           choices=displays, selected=displays[1], multiple=True)
                         
-                        ui.input_slider('polyreg_k', 'The number of polynomial terms',
-                                        min=1, max=24, value=4, step=1)
+                        model_choices = ["None", "Polynomial regression", "K-nearest neighbors",
+                                         "Decision tree", "Bagged trees"]
+                        ui.input_selectize("reg_model", "Regression model:", choices=model_choices)
                         
-                        ui.markdown('---')
+                        @render.express
+                        def reg_model_params_ui():
+                            model = input.reg_model()
+                            if model == "Polynomial regression":
+                                ui.input_slider('polyreg_k', 'The number of polynomial terms',
+                                                min=1, max=25, value=4, step=1)
+                            elif model == "K-nearest neighbors":
+                                ui.input_slider('knn_reg_k', 'The number of neighbors',
+                                                min=1, max=25, value=5, step=1)
+                            elif model in ["Decision tree", "Bagged trees"]:
+                                #with ui.layout_columns(col_widths=(6, 6)):
+                                with ui.layout_columns(col_widths=(6, 6), gap="10px"):
+                                    ui.HTML(f'<p style="padding-top:16pt">Max leaves:</p>')
+                                    ui.input_slider('dtree_reg_max_leaf', "",
+                                                     min=2, max=40, value=8, step=1)
+                                    
+                                    ui.HTML(f'<p style="padding-top:16pt">Max tree depth:</p>')
+                                    ui.input_slider('dtree_reg_depth', "",
+                                                     min=1, max=10, value=4, step=1)
 
-                        @render.ui
-                        @reactive.event(input.polyreg_k, input.polyreg_gen)
-                        def update_mse():
+                                    ui.HTML(f'<p style="padding-top:16pt">Min leaf samples:</p>')
+                                    ui.input_slider('dtree_reg_mins_sample_leaf', '',
+                                                     min=1, max=30, value=1, step=1)
 
-                            k = input.polyreg_k()
-                            samples = all_samples.get()
+                                    ui.HTML(f'<p style="padding-top:16pt">Min split samples:</p>')
+                                    ui.input_slider('dtree_reg_mins_sample_split', '',
+                                                     min=2, max=50, value=2, step=1)
 
-                            train_mse = []
-                            test_mse = []
-                            coef_mag = []
-                            for current_sample in samples:
-                                train = current_sample.loc[:train_size]
-                                test = current_sample.loc[train_size:]
-                                coef = np.polyfit(train['x'], train['y'], k)
-
-                                train_fitted = np.polyval(coef, train['x'])
-                                test_fitted = np.polyval(coef, test['x'])
-                                train_mse.append(np.mean((train_fitted - train['y'])**2))
-                                test_mse.append(np.mean((test_fitted - test['y'])**2))
-                                coef_mag.append(np.linalg.norm(np.abs(coef)))
-
-                            results = (
-                                "```python\n\n"
-                                f"Training MSE:    {np.mean(train_mse):.4f}\n\n"
-                                f"Test MSE:        {np.mean(test_mse):.4f}\n\n"
-                                f"Coef. magnitude: {np.mean(coef_mag):.4f}\n\n"
-                                "```"
-                            )
-                            #return ui.markdown(results)
-
-                    #ui.markdown(("A training dataset with 40 observations is generated from a "
-                    #             "mysterious function, and we use a polynomial regression model with "
-                    #             "$k$ polynomial terms to predict the value of the dependent variable. "
-                    #             "Use the experiments below to explore the tradeoff between the bias "
-                    #             "and variance of the prediction."))
-                    ui.markdown("A training dataset with 40 observations is generated from a "
-                                "mysterious function, and we use a polynomial regression model with "
-                                "$k$ polynomial terms to predict the value of the dependent variable. "
-                                "Use the experiments below to explore the tradeoff between the bias "
+                    ui.markdown("A training dataset is generated from a mysterious function, and "
+                                "you may use a regression model below with specific hyper-parameters "
+                                "to predict the value of the dependent variable $y$. "
+                                "Repeat the experiments to explore the tradeoff between the bias "
                                 "and variance of the prediction.")
                     
-                    train_size = 60
-                    total_size = train_size + 25
+                    train_size = 50
+                    total_size = train_size + 50
                     this_data = mysterious(total_size)
                     all_samples = reactive.value([this_data])
                     
                     @reactive.effect
                     @reactive.event(input.polyreg_gen)
                     def generate_polyreg_data():
-                        
-                        content = all_samples.get()
-                        content.append(mysterious(total_size))
-                        #all_samples.set(content)
-                    
+
+                        train_size = input.reg_data_size()
+                        if train_size != "":
+                            content = all_samples.get()
+                            content.append(mysterious(int(train_size) + 25))
+
                     @reactive.effect
-                    @reactive.event(input.polyreg_k)
+                    @reactive.event(input.reg_data_size)
                     def reset_polyreg_data():
                         
-                        all_samples.set([mysterious(total_size)])
-
-                    @render.plot(width=550, height=400)
-                    @reactive.event(input.polyreg_k, input.polyreg_displays, input.polyreg_gen)
+                        train_size = input.reg_data_size()
+                        if train_size != "":
+                            all_samples.set([mysterious(int(train_size) + 25)])
+                    
+                    @render.plot(width=550, height=600)
                     def update_polyreg_plot():
 
-                        k = input.polyreg_k()
+                        input.polyreg_gen()
                         samples = all_samples.get()    
                         current_sample = samples[-1]
 
+                        train_size = input.reg_data_size()
+                        train_size = int(train_size) if train_size != "" else 50
                         train = current_sample.loc[:train_size]
                         test = current_sample.loc[train_size:]
-                        coef = np.polyfit(train['x'], train['y'], k)
-                        
-                        fig, ax = plt.subplots()
-                        xs = np.arange(0, 1.01, 0.01)
-                        ys = np.polyval(coef, xs)
-                        ax.plot(xs, ys, color='m', linewidth=1.5, alpha=0.8,)
-                        if displays[0] in input.polyreg_displays():
-                            ax.scatter(train['x'], train['y'],
-                                       color='b', alpha=0.4, label='Training data')
-                        if displays[1] in input.polyreg_displays():
-                            ax.scatter(test['x'], test['y'],
-                                       color='r', alpha=0.4, label='Test data')
-                        if displays[2] in input.polyreg_displays():
-                            ax.plot(xs, ((1.2 - 0.2*xs) * np.sin(11*xs) + 4*xs) * 4,
-                                    color='g', linewidth=2, label='PRF')
-                        for prior in samples[:-1]:
-                            train = prior.loc[:train_size]
-                            coef = np.polyfit(train['x'], train['y'], k)
-                            ys = np.polyval(coef, xs)
-                            ax.plot(xs, ys, color='k', linewidth=1, linestyle='--', alpha=0.2)
 
-                        ax.set_xlabel('Predictor variable $x$', fontsize=11)
-                        ax.set_ylabel('Predicted variable $y$', fontsize=11)
-                        ax.set_ylim([-2.5, 27.5])
-                        ax.grid()
-                        ax.legend(fontsize=10, loc='upper left')
+                        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5.5, 6), height_ratios=[2, 1])
+                        xs = np.arange(0, 1.01, 0.01)
+                        if "Population regression function" in input.polyreg_displays():
+                            ax1.plot(xs, mysterious_prf(xs),
+                                     color='g', linewidth=2, label='PRF')
+                        if "Training data" in input.polyreg_displays():
+                            ax1.scatter(train['x'], train['y'],
+                                        color='b', alpha=0.4, label='Training data')
+                        if "Test data" in input.polyreg_displays():
+                            ax1.scatter(test['x'], test['y'],
+                                        color='r', alpha=0.4, label='Test data')
+                        
+                        params = {}
+                        model = input.reg_model()
+                        if model == "Polynomial regression":
+                            params["degree"] = input.polyreg_k()
+                        elif model == "K-nearest neighbors":
+                            params["n_neighbors"] = input.knn_reg_k()
+                        elif model in ["Decision tree", "Bagged trees"]:
+                            params["max_leaf_nodes"] = input.dtree_reg_max_leaf()
+                            params["max_depth"] = input.dtree_reg_depth()
+                            params["min_samples_leaf"] = input.dtree_reg_mins_sample_leaf()
+                            params["min_samples_split"] = input.dtree_reg_mins_sample_split()
+
+                        rmse_dict = dict(train=[], test=[])
+                        for i, each_sample in enumerate(samples):
+                            each_train = each_sample.loc[:train_size]
+                            each_test = each_sample.loc[train_size:]
+                            res = reg_pred(each_train, model, params)
+                            if res is not None:
+                                x_pred, y_pred, pipe = res
+                                if i < len(samples) - 1:
+                                    ax1.plot(x_pred, y_pred, color='k', linewidth=1,
+                                             linestyle='--', alpha=0.2)
+                                else:
+                                    ax1.plot(x_pred, y_pred, color='m', linewidth=1.5,
+                                             label='Prediction')
+                                
+                                rmse_train = rmse(each_train['y'], pipe.predict(each_train[['x']]))
+                                rmse_test = rmse(each_test['y'], pipe.predict(each_test[['x']]))
+                                rmse_dict["train"].append(rmse_train)
+                                rmse_dict["test"].append(rmse_test)
+
+                        ax1.set_xlabel('Predictor variable $x$', fontsize=11)
+                        ax1.set_ylabel('Predicted variable $y$', fontsize=11)
+                        ax1.set_ylim([-3.8, 27.3])
+                        ax1.grid()
+                        if len(input.polyreg_displays()) > 0:
+                            ax1.legend(fontsize=10, loc='upper center')
+                        
+                        #ax2.boxplot([rmse_dict["train"], rmse_dict["test"]], labels=['Train', 'Test'])
+                        if len(samples) == len(rmse_dict["train"]):
+                            ax2.plot(range(len(samples)), rmse_dict["train"],
+                                     color='b', marker='o', alpha=0.4, label="Training")
+                            ax2.plot(range(len(samples)), rmse_dict["test"],
+                                     color='r', marker='o', alpha=0.4, label="Test")
+                            ax2.hlines(np.mean(rmse_dict["train"]), xmin=-0.4, xmax=len(samples)-0.5,
+                                       color='b', linestyle='--')
+                            ax2.hlines(np.mean(rmse_dict["test"]), xmin=-0.4, xmax=len(samples)-0.5,
+                                       color='r', linestyle='--')
+                            ax2.legend(fontsize=10, loc="upper left")
+                            ax2.set_xlim([-0.4, len(samples)-0.6])
+                            rmse_max = max([max(rmse_dict["train"]), max(rmse_dict["test"])])
+                            if rmse_max > 200:
+                                ymax = max([np.mean(rmse_dict["test"]), 200])
+                                ax2.set_ylim([-6, ymax*1.2])
+                            #ax2.set_ylim([1, 10 ** np.ceil(np.log10(rmse_max))])
+                            #ax2.set_ylim([-rmse_max*0.1,
+                            #              max([rmse_max*1.25, np.mean(rmse_dict['test'])*1.85])])
+                            
+                            
+                        ax2.set_xlabel("Experiements")
+                        ax2.set_ylabel("RMSE", fontsize=11)
+                        #ax2.set_yscale('symlog')
+                        ax2.grid()
 
                         return fig
+                
+                #@render.plot(width=550, height=200)
+                #def update_polyreg_records_plot():
+
+                #    ax, fig = plt.subplots(figsize=(5.5, 2))
 
         with ui.nav_panel("Predictive Modeling: Classification"):
             ui.markdown('### Fitting classes of various patterns')
+            ui.markdown("Choosing a suitable classification model depends heavily on "
+                        "the characteristics of the data and the specific problem. For "
+                        "example, logistic regression models and support vector machines "
+                        "with linear kernels are effective in dealing with linearly "
+                        "separable classes, while tree-based methods are more suitable "
+                        "for non-linearly separable data. Besides, for a selected model, "
+                        "its hyper-parameters will affect the **bias-variance tradeoff**, "
+                        "thus influencing model performance.")
             with ui.card(height='850px'):
                 ui.card_header('Illustration of different classification models', style=chd_style)
                 with ui.layout_sidebar():
@@ -1125,7 +1213,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         with ui.layout_columns(col_widths=(8, 4)):
                             ui.HTML(f'<p style="padding-top:5pt">Sample size of each class:</p>')
                             ui.input_selectize("class_data_size", label="",
-                                               choices=[30, 50, 100, 200], selected=50)
+                                               choices=[15, 25, 50, 100], selected=25)
                         ui.markdown('Separable by a hyperplane:')
                         separable_choices = ['Separable', 'Barely separable', 'Non-separable']
                         ui.input_radio_buttons('class_pattern', label='',
@@ -1137,7 +1225,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                          'Quadratic discriminant analysis',
                                          'Support vector machine',
                                          'K-nearest neighbors',
-                                         'Decision tree', 'Random forest']
+                                         'Decision tree', 'Bagged trees']
                         ui.input_selectize('class_model', label='Classification model:',
                                            choices=model_choices,)
 
@@ -1151,7 +1239,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                    multiple=True, remove_button=True)
                                 
                                 @render.express
-                                def model_params_ui():
+                                def cls_model_params_ui():
                                     model = input.class_model()
                                     if model == "Logistic regression":
                                         ui.input_slider('logreg_alpha', 'Regularization parameter alpha:',
@@ -1179,18 +1267,22 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 ui.update_navset('svm_degree_ui', selected='svm_not_poly_panel')
 
                                     elif model == "K-nearest neighbors":
-                                        ui.input_slider('knn_k', 'Number of neighbors K:',
+                                        ui.input_slider('knn_cls_k', 'Number of neighbors K:',
                                                         min=1, max=30, value=5, step=1)
-                                    elif model in ["Decision tree", "Random forest"]:
-                                        with ui.layout_columns(col_widths=(6, 6)):
-                                            ui.input_numeric('dtree_max_leaf', "Max leaves:",
+                                    elif model in ["Decision tree", "Bagged trees"]:
+                                        with ui.layout_columns(col_widths=(6, 6), gap="10px"):
+                                            ui.HTML(f'<p style="padding-top:16pt">Max leaves:</p>')
+                                            ui.input_slider('dtree_cls_max_leaf', "",
                                                              min=2, max=40, value=8, step=1)
-                                            ui.input_numeric('dtree_depth', 'Max tree depth:',
+                                            ui.HTML(f'<p style="padding-top:16pt">Max tree depth:</p>')
+                                            ui.input_slider('dtree_cls_depth', "",
                                                              min=1, max=10, value=4, step=1)
-                                            ui.input_numeric('dtree_mins_sample_leaf', 'Min leaf samples:',
-                                                             min=1, max=15, value=1, step=1)
-                                            ui.input_numeric('dtree_mins_sample_split', 'Min split samples:',
-                                                             min=2, max=30, value=2, step=1)
+                                            ui.HTML(f'<p style="padding-top:16pt">Min leaf samples:</p>')
+                                            ui.input_slider('dtree_cls_mins_sample_leaf', '',
+                                                             min=1, max=30, value=1, step=1)
+                                            ui.HTML(f'<p style="padding-top:16pt">Min split samples:</p>')
+                                            ui.input_slider('dtree_cls_mins_sample_split', '',
+                                                             min=2, max=50, value=2, step=1)
 
                                 @reactive.effect
                                 @reactive.event(input.class_model)
@@ -1263,12 +1355,12 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 params['degree'] = input.svm_poly_degree()
                                 params['coef0'] = 1
                         elif model == 'K-nearest neighbors':
-                            params['n_neighbors'] = input.knn_k()
-                        elif model in ['Decision tree', 'Random forest']:
-                            params['max_leaf_nodes'] = input.dtree_max_leaf()
-                            params['max_depth'] = input.dtree_depth()
-                            params['min_samples_leaf'] = input.dtree_mins_sample_leaf()
-                            params['min_samples_split'] = input.dtree_mins_sample_split()
+                            params['n_neighbors'] = input.knn_cls_k()
+                        elif model in ['Decision tree', 'Bagged trees']:
+                            params['max_leaf_nodes'] = input.dtree_cls_max_leaf()
+                            params['max_depth'] = input.dtree_cls_depth()
+                            params['min_samples_leaf'] = input.dtree_cls_mins_sample_leaf()
+                            params['min_samples_split'] = input.dtree_cls_mins_sample_split()
                         res = two_class_pred(samples, model, params)
 
                         samples_renamed = samples.copy()

@@ -124,6 +124,14 @@ def invalid_name(name, error=False):
         else:
             return True
 
+def default_name(used):
+
+    index = 0
+    while True:
+        index += 1
+        name = f"df{index}"
+        if name not in used:
+            return name
 
 def display_table(df, min_rows=10):
 
@@ -481,8 +489,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     elif "width" in view and "height" in view:
                         fig = view["fig"]
                         fig.set_dpi(60)
-                        width = int(np.minimum(view["width"]*3/5, 600))
-                        height = view["height"]*3/5
+                        width = int(np.minimum(view["width"]*3/5, 500))
+                        height = int(np.minimum(view["height"]*3/5, 500))
                         with ui.panel_absolute(draggable=True, width=f"{width + 35}px", **pos):
                             with ui.card():
                                 ui.card_header("Figure", style=chd_style)
@@ -665,12 +673,12 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                         elif op_type == "Correlation":
                             ui.input_selectize("corr_metric_selectize", "Metric",
-                                            choices=["Correlation", "Covariance"])
+                                               choices=["Correlation", "Covariance"])
                             ui.input_selectize("corr_columns_selectize", "Columns",
-                                            choices=[""] + col_nbs, selected=col_nbs, multiple=True)
+                                               choices=[""] + col_nbs, selected=col_nbs, multiple=True)
                             ui.input_selectize("corr_drops_selectize", "Drop rows", choices=[],
-                                            multiple=True, remove_button=True,
-                                            options={"placeholder": "None"})
+                                               multiple=True, remove_button=True,
+                                               options={"placeholder": "None"})
                             
                             @reactive.effect
                             @reactive.event(input.corr_columns_selectize)
@@ -682,40 +690,40 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     ui.update_selectize("corr_drops_selectize", choices=[])
                         elif op_type == "Aggregation":
                             ui.input_selectize('agg_columns_selectize', 'Columns',
-                                            choices=[""] + col_nbs, selected="", multiple=True)
+                                               choices=[""] + col_nbs, selected="", multiple=True)
                             ui.input_selectize("agg_methods_selectize", 'Methods',
-                                            choices=aggs, selected=aggs_default, multiple=True)
+                                               choices=aggs, selected=aggs_default, multiple=True)
                             ui.input_switch("agg_transpose_switch", "Transpose")
                         elif op_type == "Group by":
                             ui.input_selectize("group_by_columns_selectize", "Group by",
-                                            choices=[""] + columns,
-                                            multiple=True, remove_button=True)
+                                               choices=[""] + columns,
+                                               multiple=True, remove_button=True)
                             ui.input_selectize("group_view_columns_selectize", "View on",
-                                            choices=[""] + columns,
-                                            multiple=True, remove_button=True)
+                                               choices=[""] + columns,
+                                               multiple=True, remove_button=True)
                             ui.input_selectize("group_methods_selectize", "Methods",
-                                            choices=[""] + aggs,
-                                            multiple=True, remove_button=True)
+                                               choices=[""] + aggs,
+                                               multiple=True, remove_button=True)
                             with ui.layout_columns(col_widths=(6, 6)):
                                 ui.input_switch("group_reset_switch", "Reset index")
                                 ui.input_switch("group_transpose_switch", "Transpose")
                         elif op_type == "Pivot table":
                             ui.input_selectize("pivot_values_selectize", "View on",
-                                            choices=[""] + columns, multiple=True, remove_button=True)
+                                               choices=[""] + columns, multiple=True, remove_button=True)
                             ui.input_selectize("pivot_index_selectize", "Row index",
-                                            choices=[""] + columns, multiple=True, remove_button=True)
+                                               choices=[""] + columns, multiple=True, remove_button=True)
                             ui.input_selectize("pivot_columns_selectize", "Columns", choices=[""] + col_cats,
-                                            multiple=True, remove_button=True)
+                                               multiple=True, remove_button=True)
                             ui.input_selectize("pivot_methods_selectize", "Methods", 
-                                            choices=[""] + aggs, multiple=True, remove_button=True)
+                                               choices=[""] + aggs, multiple=True, remove_button=True)
                             with ui.layout_columns(col_widths=(6, 6)):
                                 ui.input_switch("pivot_reset_switch", "Reset index")
                                 ui.input_switch("pivot_transpose_switch", "Transpose")
                         elif op_type == "Treat missing values":
                             nan_columns = to_column_choices(data_in.columns[data_in.isnull().sum() > 0])
                             ui.input_selectize("nan_columns_selectize", "Columns", choices=[""]+nan_columns,
-                                            multiple=True, remove_button=True,
-                                            options={"placeholder": "All columns"})
+                                               multiple=True, remove_button=True,
+                                               options={"placeholder": "All columns"})
                             ui.input_selectize("nan_method_selectize", "Method", choices=["drop", "fill"])
                             @render.express
                             def nan_conditional_ui():
@@ -731,15 +739,15 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 transforms =  ["change", "relative change", "log change", "moving average"]
                                 inline_label("Transform")
                                 ui.input_selectize("time_trend_transform_selectize", "",
-                                                choices=[""] + transforms)
+                                                   choices=[""] + transforms)
                                 inline_label("Steps")
                                 ui.input_text("time_trend_steps_text", "", placeholder="1")
                             ui.input_switch("time_trend_drop_original_data", "Drop original data")
                         elif op_type == "ANOVA":
                             ui.input_selectize("anova_target_selectize", "Numerical target",
-                                            choices=[""] + col_nums)
+                                               choices=[""] + col_nums)
                             ui.input_selectize("anova_features_selectize", "Features",
-                                            choices=[""], multiple=True, remove_button=True)
+                                               choices=[""], multiple=True, remove_button=True)
                             ui.input_text("anova_formula_text", "Formula")
 
                             with ui.layout_columns(col_widths=(2, 4, 2, 4)):
@@ -780,35 +788,35 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         elif op_type == "Variance inflation factor":
                             #_, feature_choices = model_variables(data_in)
                             feature_choices = [col for col in col_nbs if
-                                            data_in[col].isnull().sum() == 0 and
-                                            data_in[col].min() < data_in[col].max()]
+                                               data_in[col].isnull().sum() == 0 and
+                                               data_in[col].min() < data_in[col].max()]
                             ui.input_selectize("vif_features_selectize", "Features",
-                                            choices=feature_choices, selected=col_nums,
-                                            multiple=True)
+                                               choices=feature_choices, selected=col_nums,
+                                               multiple=True)
                             with ui.layout_columns(col_widths=(6, 6)):
                                 ui.input_switch("vif_add_constant_switch", "Intercept", value=True)
                                 ui.input_switch("vif_reset_switch", "Reset index", value=True)
 
                         elif op_type == "Clustering":
                             ui.input_selectize("clustering_method_selectize", "Method",
-                                            choices=["K-means clustering", "Hierarchical clustering"])
+                                               choices=["K-means clustering", "Hierarchical clustering"])
                             ui.input_selectize("clustering_columns_selectize", "Features for clustering",
-                                            choices=[""] + col_nbs, multiple=True, remove_button=True)
+                                               choices=[""] + col_nbs, multiple=True, remove_button=True)
                             ui.input_text("clustering_numbers_text", "Numbers of clusters")
                         elif op_type == "Over sampling":
                             ui.input_selectize("over_sampling_target_selectize", "Categorical target",
-                                            choices=[""] + col_cats)
+                                               choices=[""] + col_cats)
                             ui.input_selectize("over_sampling_features_selectize", "Features",
-                                            choices=[""] + columns,
-                                            multiple=True, remove_button=True)
+                                               choices=columns,
+                                               multiple=True, remove_button=True)
                             ui.input_selectize("over_sampling_method_selectize", "Method",
-                                            choices=["", "Random over-sampling", "SMOTE", "ADASYN"])
+                                               choices=["Random over-sampling", "SMOTE", "ADASYN"])
                             with ui.layout_columns(col_widths=(6, 6)):
                                 strategies = ["auto", "minority", "not minority", "not majority", "all"]
                                 ui.input_selectize("over_sampling_strategy_selectize", "Strategy",
-                                                choices=strategies)
+                                                   choices=strategies)
                                 ui.input_numeric("over_sampling_k_neighbors_numeric", "Neighbor No.",
-                                                min=1, max=50, step=1, value=5)
+                                                 min=1, max=50, step=1, value=5)
                             
                             @reactive.effect
                             @reactive.event(input.over_sampling_target_selectize)
@@ -831,11 +839,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 xdata = data_in[features]
                                 is_num = xdata.apply(is_numeric_dtype, axis=0).values
                                 if all(is_num):
-                                    choices = ["", "Random over-sampling", "SMOTE", "ADASYN"]
+                                    choices = ["Random over-sampling", "SMOTE", "ADASYN"]
                                 else:
-                                    choices = ["", "Random over-sampling", "SMOTE"]
+                                    choices = ["Random over-sampling", "SMOTE"]
                                 ui.update_selectize("over_sampling_method_selectize",
-                                                    choices=choices, selected="")
+                                                    choices=choices)
 
                         elif op_type == "Add columns":
                             choices = ["Arithmetic expression",
@@ -895,8 +903,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     ui.update_text("add_cols_expression_text", value=" + ".join(terms))
                         
                         hr(0)
-                        ui.input_text("op_name_out_text", "Output name",
-                                    placeholder="Key in a variable name...")
+                        #ui.input_text("op_name_out_text", "Output name",
+                        #              placeholder="Key in a variable name...")
+                        op_default_name = default_name(var_names.get())
+                        ui.input_text("op_name_out_text", "Output name", value=op_default_name,
+                                      placeholder=op_default_name)
                         
                         ui.input_text_area("op_markdown_text_area", "Markdown",
                                         placeholder="Key in notes...", height="100px")
@@ -964,12 +975,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             )
 
                         hr()
-                
-                #with ui.layout_columns(col_widths=(3, -9)):
-                #    with ui.layout_columns(col_widths=(6, 6)):
-                #        inline_label("Rows to display")
-                #        ui.input_selectize("data_min_rows", "",
-                #                           choices=["10", "16", "30", "50", "100", "1000"])
 
                     with ui.card(height="720px", full_screen=True):
 
@@ -1009,7 +1014,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                 @reactive.event(input.cancel_data_button, input.save_data_button)
                 def save_cancel_data_button_action():
 
-                    ui.update_text("op_name_out_text", value="")
+                    op_default_name = default_name(var_names.get())
+                    ui.update_text("op_name_out_text", value=op_default_name, placeholder=op_default_name)
                     ui.update_text_area("op_markdown_text_area", value="")
                     op_memory.set([])
 
@@ -2039,7 +2045,14 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                    options={"placeholder": "None"})
                                 
                                 if md_type == "Scikit-learn models":
-                                    ui.input_switch("model_formula_switch", "Edit formula")
+                                    with ui.layout_columns(col_widths=(6, 6)):
+                                        ui.input_switch("model_formula_switch", "Edit formula")
+
+                                        @render.express
+                                        def model_drop_first_ui():
+                                            if not input.model_formula_switch():
+                                                ui.input_switch("model_drop_first_switch","Drop first",
+                                                                value=True)
 
                                 with ui.navset_hidden(id="model_formula_ui_navset"):
                                     with ui.nav_panel(None, value="model_formula_off"):
@@ -2059,8 +2072,13 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     ui.input_selectize("statsmodels_type_selectize", "Model type",
                                                        choices=["ols", "logit"])                                    
                                     hr()
+                                    sm_default_name = default_name(var_names.get())
+                                    #ui.input_text("statsmodels_output_text", "Output name",
+                                    #              placeholder="Key in a variable name...")
                                     ui.input_text("statsmodels_output_text", "Output name",
-                                                  placeholder="Key in a variable name...")
+                                                  value=sm_default_name,
+                                                  placeholder=sm_default_name)
+
 
                                     @render.express
                                     def fit_statsmodels_ui():
@@ -2116,9 +2134,13 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 @reactive.event(input.sklearn_model_selectize)
                                 def sklearn_default_scaling_update():
                                     model_name = input.sklearn_model_selectize()
-                                    if model_name in ["LogisticRegression", "Lasso", "Ridge"]:
+                                    if model_name in ["LogisticRegression", "KNeighborsRegressor",
+                                                      "Lasso", "Ridge"]:
                                         ui.update_selectize("sklearn_scaling_selectize",
                                                             selected="StandardScaler")
+                                    else:
+                                        ui.update_selectize("sklearn_scaling_selectize",
+                                                            selected="Not applied")
                                 
                                 @render.express
                                 def sklearn_model_hypers_ui():
@@ -2157,8 +2179,12 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                             with ui.nav_panel("model_page4"):
                                 ui.markdown("**Step 4: save results**")
+                                sl_default_name = default_name(var_names.get())
+                                #ui.input_text("sklearn_output_text", "Output name",
+                                #              placeholder="Key in a variable name...")
                                 ui.input_text("sklearn_output_text", "Output name",
-                                              placeholder="Key in a variable name...")
+                                              value=sl_default_name,
+                                              placeholder=sl_default_name)
                                 
                                 @render.express
                                 def sklearn_regression_out_ui():
@@ -2195,6 +2221,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                     ui.input_slider("sklearn_class_threshold_slider", "",
                                                                     min=0.001, max=0.999, value=0.5, step=0.001)
                                 
+                                
                                 @reactive.effect
                                 @reactive.event(input.sklearn_class_selectize)
                                 def sklearn_outputs_checkbox_choices_udpate():
@@ -2230,7 +2257,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     #@render.code
                     #@reactive.event(input.md_debug)
                     #def md_debug_display():
-                    #    return str(mds.get()["memory"])
+                    #    return str(mds.get()["source"])
 
                     @reactive.effect
                     @reactive.event(input.model_dependent_selectize, ignore_init=True)
@@ -2263,7 +2290,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     @reactive.effect
                     @reactive.event(input.model_dependent_selectize,
                                     input.model_independent_selectize,
-                                    input.model_numeric_cats_selectize, ignore_init=True)
+                                    input.model_numeric_cats_selectize,
+                                    ignore_init=True)
                     def statsmodels_formula_text_update():
                         #if md_selected.get() == "Scikit-learn models":
                         #    if not input.model_formula_switch():
@@ -2315,6 +2343,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             disabled = input.sklearn_model_selectize() == ""
                         elif page == 3:
                             disabled = len(md_memory.get()) == 0
+                            if not disabled:
+                                disabled = not isinstance(md_memory.get()["result"], str)
                         else:
                             disabled = True
                         ui.update_action_button("sklearn_page_next_button", disabled=disabled)
@@ -2325,11 +2355,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         mds_dict = mds.get()
                         if md_page.get() == 2:
                             if mds_dict["type"] == "Regressor":
-                                models = ["LinearRegression", "Ridge", "Lasso",
+                                models = ["LinearRegression", "Ridge", "Lasso", "KNeighborsRegressor",
                                           "DecisionTreeRegressor", "RandomForestRegressor"]
                                 output_choices = ["Prediction plot", "Residual plot"]
                             elif mds_dict["type"] == "Classifier":
-                                models = ["LogisticRegression",
+                                models = ["LogisticRegression", "KNeighborsClassifier",
                                           "DecisionTreeClassifier", "RandomForestClassifier"]
                                 output_choices = ["Confusion matrix"]
                             else:
@@ -2472,7 +2502,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     else:
                         source = sklearn_model_source(mds_dict, name, data, input, md_page.get())
                         name_save = input.sklearn_output_text().strip()
-                        if name_save == "":
+                        if name_save == "" or md_page.get() < 4:
                             result_source = dict(type=None, code="", imports=[])
                         else:
                             result_source = sklearn_outputs_source(mds_dict, name, data, input)
@@ -2480,7 +2510,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         plot_source = sklearn_plots_source(mds_dict, name, data, input, md_page.get())
                         mds_dict["outputs"].extend(plot_source)
                     mds_dict["source"] = source
-
+                    
                     if input.md_show_code_switch():
                         @render.ui
                         @reactive.event(input.md_markdown_text_area)
@@ -2548,7 +2578,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 sklearn_ns = {}
                                 if len(current_imports) > 0:
                                     exec('\n'.join(current_imports), sklearn_ns)
-
+                                
                                 mds_dict["memory"]["formula_err"] = None
                                 if current_code != "":
                                     name = node["name"]
@@ -2629,6 +2659,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     else:
                                         ui_block(result, "danger")
 
+
                             elif page == 4:
                                 @render.express
                                 def sklearn_plots_display():
@@ -2708,14 +2739,14 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                 
                 @reactive.effect
                 @reactive.event(input.sklearn_fitting_button, input.sklearn_output_text,
-                                input.sklearn_test_set_switch)
+                                input.sklearn_test_set_switch, input.sklearn_page_next_button)
                 def save_sklearn_button_disable():
                     
                     memory = md_memory.get()
                     disabled = True
                     if "result" in memory:
                         invalid = invalid_name(input.sklearn_output_text().strip())
-                        disabled = (not isinstance(memory["result"], str)) or (md_page.get() < 3) or invalid
+                        disabled = (not isinstance(memory["result"], str)) or (md_page.get() < 4) or invalid
                     
                     ui.update_action_button("save_model_button", disabled=disabled)
 

@@ -12,6 +12,7 @@ model_hypers = {
     "LinearRegression": [],
     "Ridge": [("alpha", "Shrinkage parameter alpha", "1.0")],
     "Lasso": [("alpha", "Shrinkage parameter alpha", "1.0")],
+    "KNeighborsRegressor": [("n_neighbors", "Number of neighbors", "5")],
     "DecisionTreeRegressor": [
         ("max_depth", "Max tree depth", "None"),
         ("min_samples_split", "Min samples split", "2"),
@@ -26,6 +27,7 @@ model_hypers = {
         ("max_features", "Max features", "1.0")
     ],
     "LogisticRegression": [("C", "Inverse regularization C", "1.0")],
+    "KNeighborsClassifier": [("n_neighbors", "Number of neighbors", "5")],
     "DecisionTreeClassifier": [
         ("max_depth", "Max tree depth", "None"),
         ("min_samples_split", "Min samples split", "2"),
@@ -472,7 +474,7 @@ def operation_source(op, name, data, ui_input, memory):
         columns = to_selected_columns(ui_input.vif_features_selectize(), data)
         intercept = ui_input.vif_add_constant_switch()
         reset = ui_input.vif_reset_switch()
-        if len(columns) > 0:
+        if len(columns) > 0 and set(columns).issubset(set(data.columns)):
             features = data[columns]
             is_num = features.apply(is_numeric_dtype, axis=0).values
             intercept_code = f"features['constant'] = 1\n" if intercept else ""
@@ -1388,9 +1390,10 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     cat_predictors = []
     if predicted != "" and len(predictors) > 0:
         if ui_input.model_formula_switch():
+            formula = f"0 + {ui_input.statsmodels_formula_text().strip()}"
             independent_vars_code = (
-                f"x = dmatrix({ui_input.statsmodels_formula_text().strip().__repr__()}, {name},\n"
-                "            return_type='dataframe').drop(columns='Intercept')"
+                f"x = dmatrix({formula.__repr__()}, {name},\n"
+                f"            return_type='dataframe')"
             )
             dummy_code = ""
             imports_step1.extend(["import numpy as np",
@@ -1403,20 +1406,16 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
             if len(cat_predictors) > 0:
                 imports_step1.extend(["from sklearn.preprocessing import OneHotEncoder",
                                       "from sklearn.compose import ColumnTransformer"])
+                drop_first_code = "drop='first', " if ui_input.model_drop_first_switch() else ""
                 dummy_code = (
                     f"\n\ncats = {cat_predictors.__repr__()}\n"
-                    "ohe = OneHotEncoder(drop='first', sparse_output=False)\n"
+                    f"ohe = OneHotEncoder({drop_first_code}sparse_output=False)\n"
                     "to_dummies = ColumnTransformer(transformers=[('cats', ohe, cats)],\n"
                     "                               remainder='passthrough')"
                 )
             else:
                 dummy_code = ""
         
-        #y = data[predicted]
-        #if (not is_numeric_dtype(y)) or is_bool_dtype(y):
-        #    mds_dict["type"] = "Classifier"
-        #else:
-        #    mds_dict["type"] = "Regressor"
         code_step1 = (
             f"y = {name}[{predicted.__repr__()}]\n"
             f"{independent_vars_code}"
@@ -1486,6 +1485,8 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
             
     if model in ["LinearRegression", "Ridge", "Lasso", "LogisticRegression"]:
         imports_step2.append(f"from sklearn.linear_model import {model}")
+    elif model in ["KNeighborsRegressor", "KNeighborsClassifier"]:
+        imports_step2.append(f"from sklearn.neighbors import {model}")
     elif model in ["DecisionTreeRegressor", "DecisionTreeClassifier"]:
         imports_step2.append(f"from sklearn.tree import {model}")
     elif model in ["RandomForestRegressor", "RandomForestClassifier"]:
@@ -1670,7 +1671,7 @@ def statsmodels_outputs_source(ui_input):
 
     imports = ["import pandas as pd"]
     name_out = ui_input.statsmodels_output_text().strip()
-
+    
     code = (
         #f"{name_out} = pd.concat((result.params, result.bse, result.tvalues, result.pvalues), axis=1)\n"
         f"{name_out} = result.summary2().tables[1]\n"
