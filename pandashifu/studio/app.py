@@ -2059,11 +2059,18 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         None
                                     with ui.nav_panel(None, value="model_formula_on"):
                                         ui.input_text("statsmodels_formula_text", "Formula")
-                                    
+
+                                
                                 @reactive.effect
-                                @reactive.event(input.model_formula_switch)
-                                def model_formula_ui_navset_update():
-                                    if input.model_formula_switch():
+                                @reactive.event(input.statsmodels_formula_text)
+                                def statsmodels_formula_ui_navset_update():
+                                    if md_selected.get() == "Statsmodels":
+                                        ui.update_navset("model_formula_ui_navset", selected="model_formula_on")
+
+                                @reactive.effect
+                                @reactive.event(input.model_formula_switch, ignore_init=True)
+                                def sklearn_formula_ui_navset_update():
+                                    if input.model_formula_switch() or md_selected.get() == "Statsmodels":
                                         ui.update_navset("model_formula_ui_navset", selected="model_formula_on")
                                     else:
                                         ui.update_navset("model_formula_ui_navset", selected="model_formula_off")
