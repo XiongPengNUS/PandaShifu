@@ -381,10 +381,17 @@ def operation_source(op, name, data, ui_input, memory):
                 imports.append("import numpy as np")
             elif transform == "moving average":
                 expr = f"{name}[from_cols].rolling(step).mean()"
+            elif transform == "moving median":
+                expr = f"{name}[from_cols].rolling(step).median()"
+            elif transform == "moving min":
+                expr = f"{name}[from_cols].rolling(step).min()"
+            elif transform == "moving max":
+                expr = f"{name}[from_cols].rolling(step).max()"
+            elif transform == "moving variance":
+                expr = f"{name}[from_cols].rolling(step).var()"
             else:
                 expr = "None"
 
-            
             if len(steps) == 1:
                 step = steps[0]
                 step_str = f"{step}-step " if step != 1 or transform == "moving average" else ""
@@ -435,10 +442,13 @@ def operation_source(op, name, data, ui_input, memory):
             cluster_numbers = list(eval(num_str))
             method_map = {"K-means clustering": "KMeans",
                           "Hierarchical clustering": "AgglomerativeClustering"}
-            
+            numeric_cats = ui_input.clustering_numeric_cats_selectize()
+            all_nums = data[columns].apply(is_numeric_dtype).all() and len(numeric_cats) == 0
+
             columns_code = f"columns = {columns.__repr__()}\n"
             copy_name = f"{name}_copy" if left == "" else f"{name_out}"
-            copy_code = f"{copy_name} = {name}.copy()" if left == "" else f"{left}{name}.copy()"
+            copy_method = ".dropna().reset_index(drop=True)" if ui_input.clustering_dropna_switch() else ".copy()"
+            copy_code = f"{copy_name} = {name}{copy_method}" if left == "" else f"{left}{name}{copy_method}"
             func_code = f"cluster.{method_map[method]}"
 
             cluster_params_code = ", max_iter=10000, random_state=0" if method == "K-means clustering" else ""
@@ -459,17 +469,90 @@ def operation_source(op, name, data, ui_input, memory):
                     f"    {copy_name}[f'cluster_num_{{cn}}'] = pd.Series(labels).apply(lambda x: f'c{{x}}')"
                 )
 
+            if all_nums:
+                xdata_code = (
+                    f"columns = {columns_code}"
+                    f"xdata = {copy_name}[columns]"
+                )
+            else:
+                column_cat_list = [f'C({c})' if c in numeric_cats else c for c in columns]
+                formula = ' + '.join(column_cat_list)
+                xdata_code = (
+                    f"xdata = dmatrix({formula.__repr__()}, data={copy_name},\n"
+                    f"                NA_action='raise', return_type='dataframe').drop(columns='Intercept')"
+                )
             code = (
                 f"{copy_code}\n"
-                f"{columns_code}"
-                f"scaled_features = StandardScaler().fit_transform({name}[columns])\n"
+                f"{xdata_code}\n"
+                f"scaled_features = StandardScaler().fit_transform(xdata)\n"
                 f"{fit_code}\n"
                 f"{copy_name}"
             )
             imports.extend(["from sklearn.preprocessing import StandardScaler",
                             "from sklearn import cluster",
                             "import pandas as pd"])
+            if not all_nums:
+                imports.append("from patsy import dmatrix")
     
+    elif op == "Decomposition":
+        scaling = ui_input.decomposition_scaling_selectize()
+        method = ui_input.decomposition_method_selectize()
+        columns = to_selected_columns(ui_input.decomposition_columns_selectize(), data)
+        max_nc = ui_input.decomposition_max_nc_slider()
+
+        if scaling != "" and method != "" and len(columns) > 0:
+            columns_code = f"columns = {columns.__repr__()}\n"
+            copy_name = f"{name}_copy" if left == "" else f"{name_out}"
+            copy_method = ".dropna().reset_index(drop=True)" if ui_input.decomposition_dropna_switch() else ".copy()"
+            copy_code = f"{copy_name} = {name}{copy_method}" if left == "" else f"{left}{name}{copy_method}"
+            
+            numeric_cats = ui_input.decomposition_numeric_cats_selectize()
+            all_nums = data[columns].apply(is_numeric_dtype).all() and len(numeric_cats) == 0
+            if all_nums:
+                xdata_code = (
+                    f"columns = {columns_code}"
+                    f"xdata = {copy_name}[columns]"
+                )
+            else:
+                column_cat_list = [f'C({c})' if c in numeric_cats else c for c in columns]
+                formula = ' + '.join(column_cat_list)
+                xdata_code = (
+                    f"xdata = dmatrix({formula.__repr__()}, data={copy_name},\n"
+                    f"                NA_action='raise', return_type='dataframe').drop(columns='Intercept')"
+                )
+            if scaling in ["StandardScaler", "Normalizer"]:
+                feature_code = f"scaled_features = {scaling}().fit_transform(xdata)\n"
+                feature_data_code = "scaled_features"
+            else:
+                feature_code = ""
+                feature_data_code = "xdata"
+
+            params = [f"n_components={max_nc}"]
+            if method == "KernelPCA":
+                deco_kernel = ui_input.decomposition_kernels_selectize()
+                params.append(f"kernel={deco_kernel.__repr__()}")
+                if deco_kernel == "poly":
+                    params.append(f"degree={ui_input.decomposition_poly_kernel_degree()}")
+
+            drop_features = ui_input.decomposition_replace_feature_switch()
+            drop_code = f"{copy_name}.drop(columns={columns}, inplace=True)\n" if drop_features  else ""
+            code = (
+                f"{copy_code}\n"
+                f"{xdata_code}\n"
+                f"{feature_code}"
+                f"components = {method}({', '.join(params)}).fit_transform({feature_data_code})\n"
+                f"{copy_name}[[f'pc{{i+1}}' for i in range({max_nc})]] = components\n"
+                f"{drop_code}"
+                f"{copy_name}"
+            )
+
+            if scaling in ["StandardScaler", "Normalizer"]:
+                imports.append(f"from sklearn.preprocessing import {scaling}")
+            imports.extend([f"from sklearn.decomposition import {method}",
+                            "import pandas as pd"])
+            if not all_nums:
+                imports.append("from patsy import dmatrix")
+
     elif op == "Variance inflation factor":
         columns = to_selected_columns(ui_input.vif_features_selectize(), data)
         intercept = ui_input.vif_add_constant_switch()
@@ -488,6 +571,58 @@ def operation_source(op, name, data, ui_input, memory):
             )
             imports.extend(["from statsmodels.stats.outliers_influence import variance_inflation_factor",
                             "import pandas as pd"])
+    
+    elif op == "Random sampling":
+        columns = to_selected_columns(ui_input.randsampling_columns_selectize(), data)
+        size = ui_input.randsampling_size_slider()
+        if len(columns) > 0:
+            replace = ui_input.randsampling_replace_switch()
+            batch = ui_input.randsampling_batch_numeric()
+            seed = ui_input.randsampling_randstate_numeric()
+            reset = ui_input.randsampling_reset_switch()
+            
+            copy_name = f"{name}_copy" if left == "" else f"{name_out}"
+            if ui_input.randsampling_dropna_switch():
+                size = min([size, data[list(columns)].dropna().shape[0]])
+                dropna_code = ".dropna()"
+            else:
+                dropna_code = ""
+
+            if ui_input.randsampling_select_all_checkbox():
+                column_code = ""
+                data_code = f"{name}"
+            else:
+                column_code = f"columns = {columns}\n"
+                data_code = f"{name}[columns]"
+
+            params = []
+            if batch <= 1:
+                params.append(f"random_state={seed}")
+                if replace:
+                    params.append("replace=True")
+                if reset:
+                    params.append("ignore_index=True")
+                sample_code = f"{data_code}{dropna_code}.sample({size}, {', '.join(params)})"
+                code = (
+                    f"{column_code}"
+                    f"{copy_name} = {sample_code}\n"
+                    f"{copy_name}"
+                )
+            else:
+                replace_code = ", replace=True" if replace else " "
+                reset_code = ".reset_index(drop=True)" if reset else ""
+                code = (
+                    f"np.random.seed({seed})\n"
+                    f"{column_code}"
+                    f"samples = [{data_code}{dropna_code}.sample({size}{replace_code}) for i in range({batch})]\n"
+                    f"{copy_name} = pd.concat(samples){reset_code}\n"
+                    f"batch_labels = [f'b{{i+1}}' for i in range({batch}) for j in range({size})]\n"
+                    f"{copy_name}['batch_labels'] = batch_labels\n"
+                    f"{copy_name}"
+                )
+                imports.extend(["import pandas as pd",
+                                "import numpy as np"])
+
     
     elif op == "Over sampling":
         target = to_selected_columns(ui_input.over_sampling_target_selectize(), data)
@@ -1476,7 +1611,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         if len(pca) > 0:
             imports_step2.append(f"from sklearn.decomposition import PCA")
             if len(pca) == 1:
-                pca_code = f"    ('pca', PCA(n_components={pca[0]}))\n"
+                pca_code = f"    ('pca', PCA(n_components={pca[0]})),\n"
             else:
                 params.append(f"    'pca__n_components': {pca_str}")
                 pca_code = "    ('pca', PCA()),\n"
@@ -1606,8 +1741,8 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     if test_set:
         predict_func = "predict_proba" if mds_dict["type"] == "Classifier" else "predict"
         test_pred_code = (
-            f"\nmodel.fit({x_name}, {y_name})\n"
-            f"{pred_name}_test = model.{predict_func}(x_test)"
+            #f"\nmodel.fit({x_name}, {y_name})\n"
+            f"\n{pred_name}_test = model.{predict_func}(x_test)"
         )
     else:
         test_pred_code = ""
@@ -1621,7 +1756,9 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         "index=[f'fold{i}' for i in range(folds)]\n"
         f"table = pd.DataFrame({{{score_name.__repr__()}: score.round(4)}}, index=index).T\n"
         "print(f'{table}')\n"
-        "print(f'Cross-validation score: {score.mean():.4f}')"
+        "print(f'Cross-validation score: {score.mean():.4f}')\n"
+        f"train_score = model.fit({x_name}, {y_name}).score({x_name}, {y_name})\n"
+        "print(f'\\nTraining score: {train_score:.4f}')"
         f"{test_code}\n\n"
         f"{pred_name}_cv = cross_val_predict(model, {x_name}, {y_name}{pred_method_code}, cv=cv)"
         f"{test_pred_code}"

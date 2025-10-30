@@ -169,8 +169,9 @@ cat_cmaps = ['Pastel1', 'Pastel2', 'Paired', 'Accent', 'Dark2',
 ops_menu = ["Value counts operations",
             "Select columns", "Sort rows", "Boolean conditions", "Treat missing values",
             "Correlation", "Aggregation", "Group by", "Pivot table",
-            "Add columns", "Time trend", "Clustering", 
-            "ANOVA", "Variance inflation factor", "Over sampling"]
+            "Add columns", "Time trend", 
+            "Clustering", "Decomposition",
+            "ANOVA", "Variance inflation factor", "Random sampling", "Over sampling"]
 
 # The menu of all data visualization tools
 dvs_menu = ["Value counts", "Probability plot", "Histogram", "KDE", "Box plot", "Pair plot",
@@ -567,8 +568,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                         columns = to_column_choices(data_in.columns)
                         col_nums, col_cats, col_nbs = num_cat_labels(data_in)
-                        aggs = ['count', 'mean', 'median', 'std', 'var', 'min', 'max', 'sum']
-                        aggs_default = ['count', 'mean']
+                        aggs = ["count", "mean", "median", "std", "var", "min", "max", "sum"]
+                        aggs_default = ["mean"]
 
                         op_type = op_selected.get()
                         ui.markdown(f"#### {op_type}")
@@ -614,21 +615,24 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_switch("sort_descending_switch", "Descending")
                                 ui.input_switch("sort_reset_switch", "Reset index")
                         elif op_type == "Boolean conditions":
-                            with ui.layout_columns(col_widths=(7, 5)):
+                            with ui.layout_columns(col_widths=(7, 5, 12, -5, 7), gap="10px"):
                                 ui.input_selectize("filter_column_selectize", "Target variable",
                                                    choices=[""] + columns)
                                 filter_operators = ["", "==", "!=", "<=", "<", ">=", ">", "in", "not in"]
                                 ui.input_selectize("filter_operator_selectize", "Operator",
                                                    choices=filter_operators, selected="")
-                            @render.express
-                            @reactive.event(input.filter_column_selectize)
-                            def filter_value_text_ui():
-                                show_filter_value = True
-                                col = input.filter_column_selectize()
-                                if col in col_nbs and col not in col_nums:
-                                    show_filter_value = False
-                                if show_filter_value:
-                                    ui.input_text("filter_value_text", "Value(s) to compare")
+                            
+                                @render.express
+                                @reactive.event(input.filter_column_selectize)
+                                def filter_value_text_ui():
+                                    show_filter_value = True
+                                    col = input.filter_column_selectize()
+                                    if col in col_nbs and col not in col_nums:
+                                        show_filter_value = False
+                                    if show_filter_value:
+                                        ui.input_text("filter_value_text", "Value(s) to compare")
+                                
+                                #ui.input_action_button("add_filter_button", "New condition")
                             
                             @reactive.effect
                             @reactive.event(input.filter_column_selectize)
@@ -735,8 +739,10 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             ui.input_selectize("time_trend_columns_selectize", "Columns",
                                             choices=[""] + col_nums,
                                             multiple=True, remove_button=True)
-                            with ui.layout_columns(col_widths=(4, 8)):
-                                transforms =  ["change", "relative change", "log change", "moving average"]
+                            with ui.layout_columns(col_widths=(4, 8), gap="10px"):
+                                transforms =  ["change", "relative change", "log change",
+                                               "moving average", "moving median",
+                                               "moving min", "moving max", "moving variance"]
                                 inline_label("Transform")
                                 ui.input_selectize("time_trend_transform_selectize", "",
                                                    choices=[""] + transforms)
@@ -744,11 +750,12 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_text("time_trend_steps_text", "", placeholder="1")
                             ui.input_switch("time_trend_drop_original_data", "Drop original data")
                         elif op_type == "ANOVA":
-                            ui.input_selectize("anova_target_selectize", "Numerical target",
-                                               choices=[""] + col_nums)
-                            ui.input_selectize("anova_features_selectize", "Features",
-                                               choices=[""], multiple=True, remove_button=True)
-                            ui.input_text("anova_formula_text", "Formula")
+                            with ui.layout_columns(col_widths=(12, 12, 12), gap="10px"):
+                                ui.input_selectize("anova_target_selectize", "Numerical target",
+                                                   choices=[""] + col_nums)
+                                ui.input_selectize("anova_features_selectize", "Features",
+                                                   choices=[""], multiple=True, remove_button=True)
+                                ui.input_text("anova_formula_text", "Formula")
 
                             with ui.layout_columns(col_widths=(2, 4, 2, 4)):
                                 inline_label("Type")
@@ -798,11 +805,196 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_switch("vif_reset_switch", "Reset index", value=True)
 
                         elif op_type == "Clustering":
-                            ui.input_selectize("clustering_method_selectize", "Method",
-                                               choices=["K-means clustering", "Hierarchical clustering"])
-                            ui.input_selectize("clustering_columns_selectize", "Features for clustering",
-                                               choices=[""] + col_nbs, multiple=True, remove_button=True)
-                            ui.input_text("clustering_numbers_text", "Numbers of clusters")
+                            with ui.layout_columns(col_widths=(5, -2, 5, 12, 12), gap="10px"):
+                                ui.input_checkbox("clustering_select_all_checkbox", "Select all")
+                                ui.input_switch("clustering_dropna_switch", "Drop NA")
+                            
+                                cluster_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                ui.input_selectize("clustering_columns_selectize", "Features for clustering",
+                                                   choices=[""] + cluster_columns,
+                                                   multiple=True, remove_button=True)
+                                ui.input_selectize("clustering_numeric_cats_selectize",
+                                                   "Numbers treated as categories",
+                                                   choices=[""], multiple=True, remove_button=True)
+                            
+                            with ui.layout_columns(col_widths=(12, 12), gap="10px"):
+                                ui.input_selectize("clustering_method_selectize", "Method",
+                                                   choices=["K-means clustering", "Hierarchical clustering"])
+                                ui.input_text("clustering_numbers_text", "Numbers of clusters")
+
+                            @reactive.effect
+                            @reactive.event(input.clustering_select_all_checkbox)
+                            def clustering_columns_update():
+                                if input.clustering_select_all_checkbox():
+                                    data_in = node_input.get()["data"]
+                                    cluster_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                    ui.update_selectize("clustering_columns_selectize",
+                                                        selected=cluster_columns)
+                            
+                            @reactive.effect
+                            @reactive.event(input.clustering_columns_selectize, ignore_init=True)
+                            def clustering_select_all_update():
+                                node = node_input.get()
+                                data_in = node["data"]
+                                columns = to_selected_columns(input.clustering_columns_selectize(), data_in)    
+                                if len(columns) < data_in.shape[1]:
+                                    ui.update_checkbox("clustering_select_all_checkbox", value=False)
+                                
+                                cat_col = []
+                                for c in columns:
+                                    if c in col_nums:
+                                        nc = len(data_in[to_selected_columns(c, data_in)].unique())
+                                        if nc <= 30:
+                                            cat_col.append(c)
+                                ui.update_selectize("clustering_numeric_cats_selectize", choices=cat_col)
+
+                        elif op_type == "Decomposition":
+                            with ui.layout_columns(col_widths=(5, -2, 5, 12, 12), gap="10px"):
+                                ui.input_checkbox("decomposition_select_all_checkbox", "Select all")
+                                ui.input_switch("decomposition_dropna_switch", "Drop NA")
+
+                                deco_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                ui.input_selectize("decomposition_columns_selectize", "Features for decomposition",
+                                                   choices=[""] + deco_columns,
+                                                   multiple=True, remove_button=True)
+                                ui.input_selectize("decomposition_numeric_cats_selectize",
+                                                   "Numbers treated as categories",
+                                                   choices=[""], multiple=True, remove_button=True)
+        
+                            with ui.layout_columns(col_widths=(4, 8), gap="10px"):
+                                inline_label("Scaling")
+                                ui.input_selectize("decomposition_scaling_selectize", "",
+                                                   choices=["Not applied", "StandardScaler", "Normalizer"],
+                                                   selected="StandardScaler")
+                                deco_methods = ["PCA", "KernelPCA", "NMF", "FactorAnalysis"]
+                                inline_label("Method")
+                                ui.input_selectize("decomposition_method_selectize", "",
+                                                   choices=[""] + deco_methods)
+                                
+                                with ui.navset_hidden(id="decomposition_params_label"):
+                                    with ui.nav_panel(None, value="empty_label"):
+                                        None
+                                    with ui.nav_panel(None, value="kernelpca_label"):
+                                        inline_label("Kernel")
+                                        @render.express
+                                        @reactive.event(input.decomposition_kernels_selectize)
+                                        def deco_kernel_degree_label():
+                                            if input.decomposition_kernels_selectize() == "poly":
+                                                inline_label("Degree", pt="22px")
+
+                                with ui.navset_hidden(id="decomposition_params_ui"):
+                                    with ui.nav_panel(None, value="empty_ui"):
+                                        None
+                                    with ui.nav_panel(None, value="kernelpca_ui"):
+                                        kernels = ["linear", "poly", "rbf", "sigmoid", "cosine"]
+                                        ui.input_selectize("decomposition_kernels_selectize", "",
+                                                           choices=kernels)
+                                        @render.express
+                                        @reactive.event(input.decomposition_kernels_selectize)
+                                        def deco_kernel_degree_ui():
+                                            if input.decomposition_kernels_selectize() == "poly":
+                                                ui.input_slider("decomposition_poly_kernel_degree", "",
+                                                                min=1, max=10, value=3, step=1)
+    
+                                inline_label("Show first", pt="22px")
+                                ui.input_slider("decomposition_max_nc_slider", "",
+                                                min=1, max=5, value=5, step=1)
+                            
+                            ui.input_switch("decomposition_replace_feature_switch",
+                                            "Replace original features")
+
+                            @reactive.effect
+                            @reactive.event(input.decomposition_columns_selectize, ignore_init=True)
+                            def decomposition_max_nc_slider_update():
+                                node = node_input.get()
+                                data_in = node["data"]
+                                columns = to_selected_columns(input.decomposition_columns_selectize(), data_in)    
+                                if len(columns) > 0:
+                                    num_columns = len(pd.get_dummies(data_in[columns], drop_first=True).columns)
+                                    max_comps = max([5, num_columns])
+                                    ui.update_slider("decomposition_max_nc_slider",
+                                                     max=max_comps, value=min([10, num_columns]))
+                                else:
+                                    ui.update_slider("decomposition_max_nc_slider", max=5, value=5)
+                                
+                                if len(columns) < data_in.shape[1]:
+                                    ui.update_checkbox("decomposition_select_all_checkbox", value=False)
+                                
+                                cat_col = []
+                                for c in columns:
+                                    if c in col_nums:
+                                        nc = len(data_in[to_selected_columns(c, data_in)].unique())
+                                        if nc <= 30:
+                                            cat_col.append(c)
+                                ui.update_selectize("decomposition_numeric_cats_selectize", choices=cat_col)
+
+                            @reactive.effect
+                            @reactive.event(input.decomposition_select_all_checkbox)
+                            def decomposition_columns_update():
+                                if input.decomposition_select_all_checkbox():
+                                    data_in = node_input.get()["data"]
+                                    deco_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                    ui.update_selectize("decomposition_columns_selectize",
+                                                        selected=deco_columns)
+                            
+                            @reactive.effect
+                            @reactive.event(input.decomposition_method_selectize)
+                            def decomposition_params_ui_update():
+                                if input.decomposition_method_selectize() == "KernelPCA":
+                                    ui.update_navset("decomposition_params_label", selected="kernelpca_label")
+                                    ui.update_navset("decomposition_params_ui", selected="kernelpca_ui")
+                                else:
+                                    ui.update_navset("decomposition_params_label", selected="empty_label")
+                                    ui.update_navset("decomposition_params_ui", selected="empty_ui")
+
+                        elif op_type == "Random sampling":
+                            with ui.layout_columns(col_widths=(5, -2, 5, 12, 12), gap="10px"):
+                                ui.input_checkbox("randsampling_select_all_checkbox", "Select all")
+                                ui.input_switch("randsampling_dropna_switch", "Drop NA")
+                                ui.input_selectize("randsampling_columns_selectize", "Columns", 
+                                                   choices=columns, selected=[],
+                                                   multiple=True, remove_button=True)
+
+                            with ui.layout_columns(col_widths=(5, 7, 5, 7, 5, 7, 6, 6), gap="10px"):
+                                inline_label("Sample size", pt="22px")
+                                num_rows = data_in.shape[0]
+                                ui.input_slider("randsampling_size_slider", "",
+                                                min=1, max=num_rows, value=num_rows, step=1)
+                                inline_label("Batch number")
+                                ui.input_numeric("randsampling_batch_numeric", "",
+                                                 min=1, max=100, value=1, step=1)
+                                inline_label("Random state")
+                                ui.input_numeric("randsampling_randstate_numeric", "",
+                                                 min=0, max=10000, value=0, step=1)
+                                ui.input_switch("randsampling_replace_switch", "Replace")
+                                ui.input_switch("randsampling_reset_switch", "Reset index")
+                            
+                            @reactive.effect
+                            @reactive.event(input.randsampling_select_all_checkbox)
+                            def randsampling_columns_update():
+                                if input.randsampling_select_all_checkbox():
+                                    data_in = node_input.get()["data"]
+                                    ui.update_selectize("randsampling_columns_selectize",
+                                                        selected=to_column_choices(data_in.columns))
+                            
+                            @reactive.effect
+                            @reactive.event(input.randsampling_columns_selectize, ignore_init=True)
+                            def randsampling_select_all_update():
+                                columns = to_selected_columns(input.randsampling_columns_selectize(), data_in)
+                                if len(columns) < data_in.shape[1]:
+                                    ui.update_checkbox("randsampling_select_all_checkbox", value=False)
+                            
+                            @reactive.effect
+                            @reactive.event(input.randsampling_dropna_switch)
+                            def randsampling_size_slider_update():
+                                data_in = node_input.get()["data"]
+                                if input.randsampling_dropna_switch():
+                                    data_in = data_in.dropna()
+
+                                #num_rows = data_in.shape[0]
+                                #ui.update_slider("randsampling_size_slider",
+                                #                 max=num_rows, value=num_rows)
+
                         elif op_type == "Over sampling":
                             ui.input_selectize("over_sampling_target_selectize", "Categorical target",
                                                choices=[""] + col_cats)
@@ -2444,6 +2636,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         else:
                             params_code = ""
 
+                        train_result = f"\n\nTraining score: {eval('train_score', sklearn_ns):.4f}"
                         if test_set:
                             test_result = f"\nTest score: {eval('test_score', sklearn_ns):.4f}"
                         else:
@@ -2453,6 +2646,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             f"{params_code}"
                             f"{eval('table', sklearn_ns)}\n\n"
                             f"Cross-validation score: {eval('score', sklearn_ns).mean():.4f}"
+                            f"{train_result}"
                             f"{test_result}"
                         )        
                     except Exception as err:
