@@ -1970,8 +1970,8 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             columns_code = f"columns={classes.__repr__()}"
         else:
             args = f"y_target{rows}, proba_cv[:, index]>threshold"
-            index_code = f"index=['is {target_class}', 'not {target_class}'],"
-            columns_code = f"columns=['is {target_class}', 'not {target_class}']"
+            index_code = f"index=['not {target_class}', 'is {target_class}'],"
+            columns_code = f"columns=['not {target_class}', 'is {target_class}']"
 
         code = (
             f"cmat_cv = pd.DataFrame(confusion_matrix({args}, normalize='true').round(5),\n"
