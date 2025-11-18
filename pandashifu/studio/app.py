@@ -38,6 +38,9 @@ def hr(margin=0.75, offset=0):
 
     return ui.HTML(f"<hr style='margin-bottom:{margin + offset}em;margin-top:{margin - offset}em'>")
 
+def shift(pt="-15px"):
+
+    return ui.HTML(f'<div style="margin-top:{pt}"> </div>')
 
 def ui_block(string, btype):
 
@@ -580,26 +583,50 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                choices=count_choices, selected=[],
                                                multiple=True)
                             
-                            @render.express(inline=True)
-                            def counts_ops_unstack_ui():
+                            #@render.express(inline=True)
+                            #def counts_ops_unstack_ui():
+                            #    selected = list(input.counts_ops_selectize())
+                            #    maxItems = len(selected) - 1 if len(selected) > 1 else 0
+                            ui.input_selectize("counts_ops_unstack_selectize", "Unstack levels",
+                                               choices=[], selected=[],
+                                               multiple=True, remove_button=True),
+                            #                   options={"placeholder": "None", "maxItems": maxItems})
+                            
+                            @reactive.effect
+                            #@reactive.event(input.counts_ops_selectize)
+                            def counts_ops_unstack_update_choices():
                                 selected = list(input.counts_ops_selectize())
                                 maxItems = len(selected) - 1 if len(selected) > 1 else 0
-                                ui.input_selectize("counts_ops_unstack_selectize", "Unstack levels",
-                                                   choices=selected, selected=[],
-                                                   multiple=True, remove_button=True,
-                                                   options={"placeholder": "None", "maxItems": maxItems})
+                                ui.update_selectize("counts_ops_unstack_selectize",
+                                                    choices=selected, selected=[],
+                                                    options={"placeholder": "None", "maxItems": maxItems})
 
-                            @render.express(inline=True)
-                            def counts_ops_sort_by_ui():
-                                unstack = list(input.counts_ops_unstack_selectize())
-                                if len(unstack) == 0:
-                                    with ui.layout_columns(col_widths=(6, 6)):
+
+                            #@render.express(inline=True)
+                            #def counts_ops_sort_by_ui():
+                            #    unstack = list(input.counts_ops_unstack_selectize())
+                            #    if len(unstack) == 0:
+                            #        with ui.layout_columns(col_widths=(6, 6), gap="10px"):
+                            #            ui.input_switch("counts_ops_sort_switch",
+                            #                            "Sort", value=True)
+                            #            ui.input_switch("counts_ops_sort_descending_switch",
+                            #                            "Descending", value=True)
+                            
+                            with ui.layout_columns(col_widths=(6, 6), gap="10px"):
+                                @render.express(inline=True)
+                                def counts_ops_sort_by_ui_left():
+                                    unstack = list(input.counts_ops_unstack_selectize())
+                                    if len(unstack) == 0:
                                         ui.input_switch("counts_ops_sort_switch",
                                                         "Sort", value=True)
+                                
+                                @render.express(inline=True)
+                                def counts_ops_sort_by_ui_right():
+                                    unstack = list(input.counts_ops_unstack_selectize())
+                                    if len(unstack) == 0:
                                         ui.input_switch("counts_ops_sort_descending_switch",
                                                         "Descending", value=True)
-                            
-                            with ui.layout_columns(col_widths=(6, 6)):
+
                                 ui.input_switch("counts_ops_normalize_switch", "Normalize")
                                 ui.input_switch("counts_ops_reset_switch", "Reset index")
         
@@ -736,9 +763,13 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 elif input.nan_method_selectize() == "drop":
                                     ui.input_switch("nan_reset_switch", "Reset index")
                         elif op_type == "Time trend":
-                            ui.input_selectize("time_trend_columns_selectize", "Columns",
-                                            choices=[""] + col_nums,
-                                            multiple=True, remove_button=True)
+                            with ui.layout_columns(col_widths=(5, -7, 12), gap="10px"):
+                                ui.input_checkbox("time_trend_select_all_checkbox", "Select all")
+                                #ui.input_switch("time_trend_dropna_switch", "Drop NA")
+                                ui.input_selectize("time_trend_columns_selectize", "Columns",
+                                                   choices=[""] + col_nums,
+                                                   multiple=True, remove_button=True)
+                    
                             with ui.layout_columns(col_widths=(4, 8), gap="10px"):
                                 transforms =  ["change", "relative change", "log change",
                                                "moving average", "moving median",
@@ -749,6 +780,23 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 inline_label("Steps")
                                 ui.input_text("time_trend_steps_text", "", placeholder="1")
                             ui.input_switch("time_trend_drop_original_data", "Drop original data")
+
+                            @reactive.effect
+                            @reactive.event(input.time_trend_select_all_checkbox, ignore_init=True)
+                            def time_trend_columns_update():
+                                if input.time_trend_select_all_checkbox():
+                                    ui.update_selectize("time_trend_columns_selectize", selected=col_nbs)
+                            
+                            @reactive.effect
+                            @reactive.event(input.time_trend_columns_selectize)
+                            def clustering_select_all_update():
+                                node = node_input.get()
+                                data_in = node["data"]
+                                col_nums, col_cats, col_nbs = num_cat_labels(data_in)
+                                columns = input.time_trend_columns_selectize() 
+                                if len(columns) < len(col_nums):
+                                    ui.update_checkbox("time_trend_select_all_checkbox", value=False)
+
                         elif op_type == "ANOVA":
                             with ui.layout_columns(col_widths=(12, 12, 12), gap="10px"):
                                 ui.input_selectize("anova_target_selectize", "Numerical target",
@@ -809,35 +857,42 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_checkbox("clustering_select_all_checkbox", "Select all")
                                 ui.input_switch("clustering_dropna_switch", "Drop NA")
                             
-                                cluster_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                cluster_columns = list(set(col_nbs + discrete_labels(data_in, max_cats=50)))
                                 ui.input_selectize("clustering_columns_selectize", "Features for clustering",
-                                                   choices=[""] + cluster_columns,
+                                                   choices=cluster_columns, selected=[],
                                                    multiple=True, remove_button=True)
                                 ui.input_selectize("clustering_numeric_cats_selectize",
                                                    "Numbers treated as categories",
                                                    choices=[""], multiple=True, remove_button=True)
                             
-                            with ui.layout_columns(col_widths=(12, 12), gap="10px"):
-                                ui.input_selectize("clustering_method_selectize", "Method",
+                            with ui.layout_columns(col_widths=(4, 8), gap="10px"):
+                                inline_label("Method")
+                                ui.input_selectize("clustering_method_selectize", "",
                                                    choices=["K-means clustering", "Hierarchical clustering"])
-                                ui.input_text("clustering_numbers_text", "Numbers of clusters")
+                                inline_label("Cluster No.")
+                                ui.input_text("clustering_numbers_text", "")
+                                inline_label("Label prefix")
+                                ui.input_text("clustering_label_prefix_text", "", placeholder="cluster_num")
+                                inline_label("Value prefix")
+                                ui.input_text("clustering_value_prefix_text", "", placeholder="c")
 
                             @reactive.effect
-                            @reactive.event(input.clustering_select_all_checkbox)
+                            @reactive.event(input.clustering_select_all_checkbox, ignore_init=True)
                             def clustering_columns_update():
                                 if input.clustering_select_all_checkbox():
                                     data_in = node_input.get()["data"]
-                                    cluster_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                    cluster_columns = list(set(col_nbs + discrete_labels(data_in, max_cats=50)))
                                     ui.update_selectize("clustering_columns_selectize",
                                                         selected=cluster_columns)
                             
                             @reactive.effect
-                            @reactive.event(input.clustering_columns_selectize, ignore_init=True)
+                            @reactive.event(input.clustering_columns_selectize)
                             def clustering_select_all_update():
                                 node = node_input.get()
                                 data_in = node["data"]
                                 columns = to_selected_columns(input.clustering_columns_selectize(), data_in)    
-                                if len(columns) < data_in.shape[1]:
+                                cluster_columns = set(col_nbs + discrete_labels(data_in, max_cats=50))
+                                if len(columns) < len(cluster_columns):
                                     ui.update_checkbox("clustering_select_all_checkbox", value=False)
                                 
                                 cat_col = []
@@ -853,9 +908,9 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.input_checkbox("decomposition_select_all_checkbox", "Select all")
                                 ui.input_switch("decomposition_dropna_switch", "Drop NA")
 
-                                deco_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                deco_columns = list(set(col_nbs + discrete_labels(data_in, max_cats=50)))
                                 ui.input_selectize("decomposition_columns_selectize", "Features for decomposition",
-                                                   choices=[""] + deco_columns,
+                                                   choices=deco_columns, selected=[],
                                                    multiple=True, remove_button=True)
                                 ui.input_selectize("decomposition_numeric_cats_selectize",
                                                    "Numbers treated as categories",
@@ -875,7 +930,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     with ui.nav_panel(None, value="empty_label"):
                                         None
                                     with ui.nav_panel(None, value="kernelpca_label"):
-                                        inline_label("Kernel")
+                                        inline_label("Kernel", pt="10px")
                                         @render.express
                                         @reactive.event(input.decomposition_kernels_selectize)
                                         def deco_kernel_degree_label():
@@ -896,15 +951,17 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 ui.input_slider("decomposition_poly_kernel_degree", "",
                                                                 min=1, max=10, value=3, step=1)
     
+                                inline_label("Label prefix")
+                                ui.input_text("decomposition_label_prefix_text", "", placeholder="pc")
                                 inline_label("Show first", pt="22px")
                                 ui.input_slider("decomposition_max_nc_slider", "",
                                                 min=1, max=5, value=5, step=1)
-                            
+                                
                             ui.input_switch("decomposition_replace_feature_switch",
                                             "Replace original features")
 
                             @reactive.effect
-                            @reactive.event(input.decomposition_columns_selectize, ignore_init=True)
+                            @reactive.event(input.decomposition_columns_selectize)
                             def decomposition_max_nc_slider_update():
                                 node = node_input.get()
                                 data_in = node["data"]
@@ -917,7 +974,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 else:
                                     ui.update_slider("decomposition_max_nc_slider", max=5, value=5)
                                 
-                                if len(columns) < data_in.shape[1]:
+                                deco_columns = set(col_nbs + discrete_labels(data_in, max_cats=50))
+                                if len(columns) < len(deco_columns):
                                     ui.update_checkbox("decomposition_select_all_checkbox", value=False)
                                 
                                 cat_col = []
@@ -929,11 +987,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 ui.update_selectize("decomposition_numeric_cats_selectize", choices=cat_col)
 
                             @reactive.effect
-                            @reactive.event(input.decomposition_select_all_checkbox)
+                            @reactive.event(input.decomposition_select_all_checkbox, ignore_init=True)
                             def decomposition_columns_update():
                                 if input.decomposition_select_all_checkbox():
                                     data_in = node_input.get()["data"]
-                                    deco_columns = col_nbs + discrete_labels(data_in, max_cats=50)
+                                    deco_columns = list(set(col_nbs + discrete_labels(data_in, max_cats=50)))
                                     ui.update_selectize("decomposition_columns_selectize",
                                                         selected=deco_columns)
                             
@@ -1265,16 +1323,29 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                                 if dv_type == "Value counts":
                                     choices = [""] + discrete_labels(data, max_cats=100)
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Column")
                                         ui.input_selectize("value_counts_column_selectize", "", choices=choices)
 
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(6, 6, 3, 9, 3, 9), gap="10px"):
                                         ui.input_selectize("value_counts_direction_selectize", "Direction",
                                                            choices=["Vertical", "Horizontal"])
                                         ui.input_selectize("value_counts_method_selectize", "Method",
                                                            choices=["Count", "Density"])
                                     
+                                    #with ui.layout_columns(col_widths=(3, 9, 3, 9), gap="10px"):
+                                        inline_label("Palette", pt="8px")
+                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
+                                            @render.ui
+                                            def value_counts_hexcolor():
+                                                c = color.get()
+                                                return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
+                                            ui_color_input("value_counts_color_input", "", value='#1f77b4')
+                                        
+                                        inline_label("Opacity", pt="22px")
+                                        ui.input_slider("value_counts_alpha_slider", "",
+                                                        min=0.2, max=1, step=0.05, value=1)
+
                                     @reactive.effect
                                     @reactive.event(input.value_counts_column_selectize,
                                                     input.value_counts_direction_selectize,
@@ -1291,28 +1362,15 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         elif direction == "Horizontal":
                                             ui.update_text("fig_xlabel_text", value=method)
                                             ui.update_text("fig_ylabel_text", value=column)
-
-                                    with ui.layout_columns(col_widths=(3, 9)):
-                                        inline_label("Palette", pt="8px")
-                                        with ui.layout_columns(col_widths=(5, 7), gap="2px"):
-                                            @render.ui
-                                            def value_counts_hexcolor():
-                                                c = color.get()
-                                                return ui.HTML(f"<span style='{hc_style}'>{c}</span>")
-                                            ui_color_input("value_counts_color_input", "", value='#1f77b4')
                                         
                                         @reactive.effect
                                         @reactive.event(input.value_counts_color_input)
                                         def update_value_counts_color():
                                             c = input.value_counts_color_input()
                                             color.set(c)
-                                    
-                                        inline_label("Opacity", pt="22px")
-                                        ui.input_slider("value_counts_alpha_slider", "",
-                                                        min=0.2, max=1, step=0.05, value=1)
                                 
                                 elif dv_type == "Histogram":
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Column")
                                         ui.input_selectize("hist_column_selectize", "",
                                                            choices=[""]+col_nums)
@@ -1323,25 +1381,15 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                            choices=choices, remove_button=True,
                                                            options={"placeholder": "None"})
                                     
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(6, 6), gap="10px"):
                                         ui.input_numeric("hist_bins_numeric", "Bins", min=5, max=80, value=10)
                                         ui.input_selectize("hist_method_selectize", "Method",
                                                            choices=["Count", "Density"])
                                     
-                                    @reactive.effect
-                                    @reactive.event(input.hist_column_selectize,
-                                                    input.hist_method_selectize)
-                                    def hist_labels_update():
-
-                                        column = input.hist_column_selectize()
-                                        method = input.hist_method_selectize()
-
-                                        ui.update_text("fig_xlabel_text", value=column)
-                                        ui.update_text("fig_ylabel_text", value=method)
-                                        
+                                    shift()
                                     with ui.navset_hidden(id="hist_conditional_ui"):
                                         with ui.nav_panel(None, value="hist_single_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                                 inline_label("Palette", pt="8px")
                                                 with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
@@ -1357,20 +1405,31 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 color.set(c)
 
                                         with ui.nav_panel(None, value="hist_multiple_case"):
-                                            with ui.layout_columns(col_widths=(6, 6)):
+                                            with ui.layout_columns(col_widths=(6, 6, 3, 9), gap="10px"):
                                                 ui.input_selectize("hist_grouped_norm_selectize", "Normalized",
                                                                 choices=["Separately", "Jointly"])
                                                 ui.input_selectize("hist_grouped_multiple_selectize", "Style",
                                                                 choices=["Layer", "Stack", "Fill"])
-                                            with ui.layout_columns(col_widths=(3, 9)):
-                                                inline_label("Colormap")
+                                                inline_label("Theme")
                                                 ui.input_selectize("hist_grouped_cmap_selectize", "",
                                                                 choices=cat_cmaps, selected="tab10")
                                     
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    shift()
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("hist_alpha_slider", "",
                                                         min=0.2, max=1, step=0.05, value=1)
+                                    
+                                    @reactive.effect
+                                    @reactive.event(input.hist_column_selectize,
+                                                    input.hist_method_selectize)
+                                    def hist_labels_update():
+
+                                        column = input.hist_column_selectize()
+                                        method = input.hist_method_selectize()
+
+                                        ui.update_text("fig_xlabel_text", value=column)
+                                        ui.update_text("fig_ylabel_text", value=method)
                                     
                                     @reactive.effect
                                     @reactive.event(input.hist_group_by_selectize)
@@ -1382,29 +1441,20 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             ui.update_navset("hist_conditional_ui", selected="hist_multiple_case")
                                 
                                 elif dv_type == "KDE":
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Column")
                                         ui.input_selectize("kde_column_selectize", "",
-                                                        choices=[""]+col_nums)
+                                                           choices=[""]+col_nums)
 
                                         choices = [""] + discrete_labels(data, max_cats=8)
                                         inline_label("Group")
                                         ui.input_selectize("kde_group_by_selectize", "",
                                                         choices=choices, remove_button=True,
                                                         options={"placeholder": "None"})
-                                    
-                                    @reactive.effect
-                                    @reactive.event(input.kde_column_selectize)
-                                    def hist_labels_update():
-
-                                        column = input.kde_column_selectize()
-                                        
-                                        ui.update_text("fig_xlabel_text", value=column)
-                                        ui.update_text("fig_ylabel_text", value="Density")
-                                        
+    
                                     with ui.navset_hidden(id="kde_conditional_ui"):
                                         with ui.nav_panel(None, value="kde_single_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                                 inline_label("Palette", pt="8px")
                                                 with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
@@ -1420,20 +1470,30 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                     color.set(c)
                                         
                                         with ui.nav_panel(None, value="kde_multiple_case"):
-                                            with ui.layout_columns(col_widths=(6, 6)):
+                                            with ui.layout_columns(col_widths=(6, 6, 3, 9), gap="10px"):
                                                 ui.input_selectize("kde_grouped_norm_selectize", "Normalized",
                                                                 choices=["Separately", "Jointly"])
                                                 ui.input_selectize("kde_grouped_multiple_selectize", "Style",
                                                                 choices=["Layer", "Stack", "Fill"])
-                                            with ui.layout_columns(col_widths=(3, 9)):
-                                                inline_label("Colormap")
+
+                                                inline_label("Theme")
                                                 ui.input_selectize("kde_grouped_cmap", "",
                                                                 choices=cat_cmaps, selected="tab10")
                                     
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    shift()
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("kde_alpha_slider", "",
                                                         min=0.2, max=1, step=0.05, value=1)
+                                    
+                                    @reactive.effect
+                                    @reactive.event(input.kde_column_selectize)
+                                    def hist_labels_update():
+
+                                        column = input.kde_column_selectize()
+                                        
+                                        ui.update_text("fig_xlabel_text", value=column)
+                                        ui.update_text("fig_ylabel_text", value="Density")
                                     
                                     @reactive.effect
                                     @reactive.event(input.kde_group_by_selectize)
@@ -1445,7 +1505,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             ui.update_navset("kde_conditional_ui", selected="kde_multiple_case")
 
                                 elif dv_type == "Box plot":
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Column")
                                         ui.input_selectize("boxplot_column_selectize", "",
                                                            choices=[""]+col_nums)
@@ -1461,21 +1521,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         ui.input_selectize("boxplot_hue_selectize", "",
                                                            choices=hues, remove_button=True,
                                                            options={"placeholder": "None"})
-
-                                    @reactive.effect
-                                    @reactive.event(input.boxplot_column_selectize,
-                                                    input.boxplot_group_by_selectize,
-                                                    input.boxplot_direction_selectize)
-                                    def boxplot_labels_update():
-
-                                        column = input.boxplot_column_selectize()
-                                        group = input.boxplot_group_by_selectize()
-                                        if input.boxplot_direction_selectize() == "Horizontal":
-                                            group, column = column, group
-                                        ui.update_text("fig_xlabel_text", value=group)
-                                        ui.update_text("fig_ylabel_text", value=column)
                                     
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(6, 6), gap="10px"):
                                         ui.input_switch("boxplot_notch_switch", "Notch")
                                         ui.input_switch("boxplot_mean_switch", "Mean")
                                         ui.input_selectize("boxplot_direction_selectize", "Direction",
@@ -1483,9 +1530,10 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         ui.input_numeric("boxplot_width_numeric", "Width",
                                                          min=0.1, max=1, step=0.05, value=0.8)
                                     
+                                    shift()
                                     with ui.navset_hidden(id="boxplot_conditional_ui"):
                                         with ui.nav_panel(None, value="boxplot_single_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                                 inline_label("Palette", pt="8px")
                                                 with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
@@ -1501,16 +1549,30 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                     color.set(c)
                                         
                                         with ui.nav_panel(None, value="boxplot_multiple_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
-                                                inline_label("Colormap")
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
+                                                inline_label("Theme")
                                                 ui.input_selectize("boxplot_grouped_cmap_selectize", "",
                                                                    choices=cat_cmaps, selected="tab10")
-                                        
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    
+                                    shift()
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("boxplot_alpha_slider", "",
                                                         min=0.2, max=1, step=0.05, value=1)
 
+                                    @reactive.effect
+                                    @reactive.event(input.boxplot_column_selectize,
+                                                    input.boxplot_group_by_selectize,
+                                                    input.boxplot_direction_selectize)
+                                    def boxplot_labels_update():
+
+                                        column = input.boxplot_column_selectize()
+                                        group = input.boxplot_group_by_selectize()
+                                        if input.boxplot_direction_selectize() == "Horizontal":
+                                            group, column = column, group
+                                        ui.update_text("fig_xlabel_text", value=group)
+                                        ui.update_text("fig_ylabel_text", value=column)
+    
                                     @reactive.effect
                                     @reactive.event(input.boxplot_hue_selectize)
                                     def boxplot_group_by_selectize_update_ui():
@@ -1523,17 +1585,16 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                              selected="boxplot_multiple_case")
                                 
                                 elif dv_type == "Probability plot":
-                                    with ui.layout_columns(col_widths=(4, 8)):
+                                    with ui.layout_columns(col_widths=(3, 9, 12), gap="10px"):
                                         inline_label("Column")
                                         ui.input_selectize("proba_plot_selectize", "", choices=[""] + col_nums)
+                                        ui.input_switch("proba_plot_standardize_switch", "Standardize")
+
+                                    with ui.layout_columns(col_widths=(4, 8, 3, 9, 3, 9, 3, 9), gap="10px"):
                                         distr_choices = ["Normal", "Exponential", "Uniform"]
                                         inline_label("Distribution")
                                         ui.input_selectize("proba_plot_distri_selectize", "",
                                                            choices=distr_choices)
-                                    
-                                    ui.input_switch("proba_plot_standardize_switch", "Standardize")
-
-                                    with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Palette", pt="8px")
                                         with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
@@ -1548,7 +1609,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             c = input.proba_plot_color_input()
                                             color.set(c)
 
-                                    with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("proba_plot_alpha_slider", "",
                                                         min=0.2, max=1, step=0.05, value=1)
@@ -1564,68 +1624,63 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                                 elif dv_type == "Pair plot":
 
-                                    ui.input_selectize("pair_columns_selectize", "Columns", 
-                                                       choices=[""] + col_nums,
-                                                       multiple=True, remove_button=True)
-                                    ui.input_selectize("pair_drop_rows_selectize", "Drop rows",
-                                                       choices=[""], multiple=True, remove_button=True,
-                                                       options={"placeholder": "None"})
+                                    with ui.layout_columns(col_widths=(12, 12), gap="10px"):
+                                        ui.input_selectize("pair_columns_selectize", "Columns", 
+                                                           choices=[""] + col_nums,
+                                                           multiple=True, remove_button=True)
+                                        ui.input_selectize("pair_drop_rows_selectize", "Drop rows",
+                                                           choices=[""], multiple=True, remove_button=True,
+                                                           options={"placeholder": "None"})
                                     
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
+                                        inline_label("Hues")
+                                        hue_choices = [""] + discrete_labels(data, max_cats=8)
+                                        ui.input_selectize("pair_hue_selectize", "",
+                                                           choices=[""] + hue_choices, remove_button=True,
+                                                           options={"placeholder": "None"})
+                                        inline_label("Theme")
+                                        ui.input_selectize("pair_cmap_selectize", "",
+                                                           choices=cat_cmaps, selected="tab10")
+                                        inline_label("Opacity", pt="22px")
+                                        ui.input_slider("pair_alpha_slider", "",
+                                                        min=0.2, max=1, step=0.05, value=1)
+                                    
+                                    with ui.layout_columns(col_widths=(6, 6), gap="10px"):
+                                        ui.input_selectize("pair_kind_selectize", "Plot kind", 
+                                                           choices=["scatter", "kde", "hist", "reg"])
+                                        ui.input_selectize("pair_diag_kind_selectize", "Diagonal kind", 
+                                                           choices=["auto", "kde", "hist"])
+                                        ui.input_switch("pair_corner_switch", "Corner")
+                                
                                     @reactive.effect
                                     def pair_columns_selectize_choices_update():
                                         cols = list(input.pair_columns_selectize())
                                         if len(cols) > 0:
                                             ui.update_selectize("pair_drop_rows_selectize", choices=cols)
 
-                                    with ui.layout_columns(col_widths=(3, 9)):
-                                        inline_label("Hues")
-                                        hue_choices = [""] + discrete_labels(data, max_cats=8)
-                                        ui.input_selectize("pair_hue_selectize", "",
-                                                           choices=[""] + hue_choices, remove_button=True,
-                                                           options={"placeholder": "None"})
-                                        inline_label("Colormap")
-                                        ui.input_selectize("pair_cmap_selectize", "",
-                                                           choices=cat_cmaps, selected="tab10")
-                                        inline_label("Opacity", pt="22px")
-                                        ui.input_slider("pair_alpha_slider", "",
-                                                        min=0.2, max=1, step=0.05, value=1)
-
-                                    with ui.layout_columns(col_widths=(6, 6)):
-                                        ui.input_selectize("pair_kind_selectize", "Plot kind", 
-                                                           choices=["scatter", "kde", "hist", "reg"])
-                                        ui.input_selectize("pair_diag_kind_selectize", "Diagonal kind", 
-                                                           choices=["auto", "kde", "hist"])
-                                    ui.input_switch("pair_corner_switch", "Corner")
                                 
                                 elif dv_type == "Heat map":
                                     ui.input_selectize("heatmap_columns_selectize", "Columns",
                                                        choices=col_nbs, selected=[], remove_button=True,
                                                        multiple=True)
                                     
-                                    with ui.layout_columns(col_widths=(4, 8)):
-                                        inline_label("Colormap")
+                                    with ui.layout_columns(col_widths=(4, 8, 6, 6), gap="10px"):
+                                        inline_label("Theme")
                                         ui.input_selectize("heatmap_colormap_selectize", "",
                                                            choices=num_cmaps)
 
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    #with ui.layout_columns(col_widths=(6, 6)):
                                         ui.input_switch("heatmap_annot_switch", "Annotate", value=True)
                                         ui.input_switch("heatmap_top_tick_switch", "Ticks at top", value=True)
 
                                 elif dv_type == "Bar chart":
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Y-data")
                                         ui.input_selectize("bar_ydata_selectize", "", choices=[""]+col_nums)
                                         inline_label("Label")
                                         ui.input_text("bar_label_text", "", placeholder="None")
 
-                                        @reactive.effect
-                                        @reactive.event(input.bar_ydata_selectize)
-                                        def bar_labels_update():
-                                            if input.bar_ydata_selectize() != "":
-                                                ui.update_text("bar_label_text",
-                                                               placeholder=input.bar_ydata_selectize())
-
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    #with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Palette", pt="8px")
                                         with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
@@ -1670,46 +1725,58 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 choices.append(input.bar_ydata_selectize())
                                             if input.bar_xdata_selectize() != "":
                                                 choices.append(input.bar_xdata_selectize())
-                                            with ui.layout_columns(col_widths=(3, 9)):
+                                            shift()
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                                 inline_label("Sort by")
                                                 ui.input_selectize("bar_sort_by_selectize", "",
                                                                    choices=[""] + choices, remove_button=True,
                                                                    options={"placeholder": "Row index"})
                                     
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    shift()
+                                    with ui.layout_columns(col_widths=(3, 9, 6, 6, 3, 9, 3, 9), gap="10px"):
                                         inline_label("X-data")
                                         ui.input_selectize("bar_xdata_selectize", "",
                                                            choices=[""]+columns, remove_button=True,
                                                            options={"placeholder": "Row index"})
                                     
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    #with ui.layout_columns(col_widths=(6, 6)):
                                         dt = ["Vertical", "Horizontal"]
                                         ui.input_selectize("bar_direction_selectize", "Direction", choices=dt)
                                         btype = ["Clustered", "Stacked"]
                                         ui.input_selectize("bar_mode_selectize", "Type of bars", choices=btype)
 
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    #with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Width", pt="22px")
                                         ui.input_slider("bar_width_slider", "",
                                                         min=0.1, max=1.0, value=0.8, step=0.05)
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("bar_alpha_slider", "",
                                                         min=0.2, max=1.0, value=1.0, step=0.05)
+                                    
+                                    @reactive.effect
+                                    @reactive.event(input.bar_ydata_selectize)
+                                    def bar_labels_update():
+                                        if input.bar_ydata_selectize() != "":
+                                            ui.update_text("bar_label_text",
+                                                           placeholder=input.bar_ydata_selectize())
                                 
                                 elif dv_type == "Radar chart":
-                                    ui.input_selectize("radar_selectize", "Columns",
-                                                       choices=[""] + col_nums,
-                                                       multiple=True, remove_button=True)
-                                    with ui.layout_columns(col_widths=(4, 8)):
-                                        inline_label("Ticks angle", pt="22px")
-                                        ui.input_slider("radar_tick_angle_slider", "",
-                                                        min=0, max=355, value=0, step=5)
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(12, 3, 9), gap="10px"):
+                                        ui.input_selectize("radar_selectize", "Columns",
+                                                           choices=[""] + col_nums,
+                                                           multiple=True, remove_button=True)
                                         inline_label("Category")
                                         ui.input_selectize("radar_cats_selectize", "",
                                                            choices=[""] + columns, remove_button=True,
                                                            options={"placeholder": "Row index"})
-                                        inline_label("Colormap")
+                                    
+                                    with ui.layout_columns(col_widths=(5, 7), gap="10px"):
+                                        inline_label("Tick axis angle", pt="22px")
+                                        ui.input_slider("radar_tick_angle_slider", "",
+                                                        min=0, max=355, value=0, step=5)
+                                    
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
+                                        inline_label("Theme")
                                         ui.input_selectize("radar_cmap_selectize", "",
                                                            choices=cat_cmaps, selected="tab10")
                                         inline_label("Opacity", pt="22px")
@@ -1717,23 +1784,19 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                         min=0.2, max=1.0, value=0.6, step=0.05)
 
                                 elif dv_type == "Line plot":
-
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Y-data")
                                         ui.input_selectize("line_ydata_selectize", "",
                                                            choices=[""]+col_nums)
-                                        
                                         inline_label("X-data")
                                         ui.input_selectize("line_xdata_selectize", "",
                                                            choices=[""]+columns, remove_button=True,
                                                            options={"placeholder": "Row index"})
-                                        
                                         inline_label("Margin")
                                         ui.input_selectize("line_margin_data_selectize", "",
                                                            choices=[""]+col_nums,
                                                            multiple=True, remove_button=True,
                                                            options={"placeholder": "None", "maxItems": 2})
-                                        
                                         inline_label("Label")
                                         ui.input_text("line_label_text", "", placeholder="None")
 
@@ -1744,14 +1807,13 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 ui.update_text("line_label_text",
                                                                placeholder=input.line_ydata_selectize())
                                                 
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(6, 6, 3, 9, 3, 9, 3, 9), gap="10px"):
                                         styles = ["solid", "dash", "dot", "dash-dot"]
                                         ui.input_selectize("line_style_selectize", "Style", choices=styles)
                                         markers = ["none", "circle", "square", "dot",
                                                    "diamond", "triangle", "star", "cross"]
                                         ui.input_selectize("line_marker_selectize", "Marker", choices=markers)
                                     
-                                    with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label('Width', pt="22px")
                                         ui.input_slider("line_width_slider", "",
                                                         min=0.5, max=4, step=0.5, value=1.5)
@@ -1785,7 +1847,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                                 disabled=input.line_ydata_selectize() == "")
                                 
                                 elif dv_type == "Scatter plot":
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Y-data")
                                         ui.input_selectize("scatter_ydata_selectize", "",
                                                            choices=[""]+columns)
@@ -1802,24 +1864,25 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             ui.update_text("fig_ylabel_text",
                                                            value=input.scatter_ydata_selectize())
 
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Size")
                                         ui.input_selectize("scatter_size_data_selectize", "",
                                                            choices=[""]+col_nums,
                                                            remove_button=True, options={"placeholder": "None"})
-                                    with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label('Scale', pt="22px")
                                         ui.input_slider("scatter_size_scale_slider", "",
                                                         min=0.1, max=2, value=1, step=0.05)
                                     
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Hues")
                                         ui.input_selectize("scatter_color_data_selectize", "",
                                                            choices=[""]+columns,
                                                            remove_button=True, options={"placeholder": "None"})
                                     
+                                    shift()
                                     with ui.navset_hidden(id="scatter_conditional_ui"):
                                         with ui.nav_panel(None, value="scatter_single_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                                 inline_label("Palette", pt="8px")
                                                 with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
@@ -1835,12 +1898,13 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 color.set(c)
                                         
                                         with ui.nav_panel(None, value="scatter_multiple_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
-                                                inline_label("Colormap")
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
+                                                inline_label("Theme")
                                                 ui.input_selectize("scatter_cmap_selectize", "",
                                                                    choices=num_cmaps, selected="viridis")
-                                        
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    
+                                    shift()
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("scatter_alpha_slider", "",
                                                         min=0.2, max=1.0, value=1.0, step=0.05)
@@ -1866,7 +1930,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                                 choices=cmaps, selected=cmap)
                                 
                                 elif dv_type == "Regression plot":
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Y-data")
                                         ui.input_selectize("regplot_ydata_selectize", "",
                                                            choices=[""]+col_nbs)
@@ -1883,15 +1947,16 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             ui.update_text("fig_ylabel_text",
                                                            value=input.regplot_ydata_selectize())
                                     
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         choices = [""] + discrete_labels(data, max_cats=8)
                                         inline_label("Hues")
                                         ui.input_selectize("regplot_color_data_selectize", "",
                                                            choices=choices,
                                                            remove_button=True, options={"placeholder": "None"})
-                                    
+                                    shift()
                                     with ui.navset_hidden(id="regplot_conditional_ui"):
                                         with ui.nav_panel(None, value="regplot_single_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                                 inline_label("Palette", pt="8px")
                                                 with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                                     @render.ui
@@ -1907,18 +1972,17 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                     color.set(c)
                                         
                                         with ui.nav_panel(None, value="regplot_multiple_case"):
-                                            with ui.layout_columns(col_widths=(3, 9)):
-                                                inline_label("Colormap")
+                                            with ui.layout_columns(col_widths=(3, 9), gap="10px"):
+                                                inline_label("Theme")
                                                 ui.input_selectize("regplot_cmap_selectize", "",
                                                                    choices=num_cmaps, selected="viridis")
-                                    
+                                    shift()
                                     with ui.layout_columns(col_widths=(3, 9)):
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("regplot_alpha_slider", "",
                                                         min=0.2, max=1.0, value=1.0, step=0.05)
                                     
-
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(6, 6), gap="10px"):
                                         ui.input_switch("regplot_fitted_line_switch", "Fitted line", value=True)
                                         ui.input_switch("regplot_centroid_switch", "Centroid")
                                         inline_label("Confidence level")
@@ -1931,7 +1995,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     @render.express(inline=True)
                                     def regplot_poly_degree_ui():
                                         if input.regplot_transform_selectize() == "Polynomial":
-                                            with ui.layout_columns(col_widths=(6, 6)):
+                                            shift()
+                                            with ui.layout_columns(col_widths=(6, 6), gap="10px"):
                                                 inline_label("Polynomial order")
                                                 ui.input_numeric("regplot_poly_order_numeric", "", 
                                                                  min=2, max=10, step=1, value=2)
@@ -1973,25 +2038,22 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                                 elif dv_type == "Filled areas":
 
-                                    ui.input_selectize("filled_areas_ydata_selectize", "Y-data",
-                                                       choices=[""] + col_nums,
-                                                       multiple=True, remove_button=True)
-                                    
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(12, 3, 9), gap="10px"):
+                                        ui.input_selectize("filled_areas_ydata_selectize", "Y-data",
+                                                           choices=[""] + col_nums,
+                                                           multiple=True, remove_button=True)
                                         inline_label("X-data")
                                         ui.input_selectize("filled_areas_xdata_selectize", "",
                                                            choices=[""] + columns, remove_button=True,
                                                            options={"placeholder": "Row index"})
 
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Style")
                                         ui.input_selectize("filled_areas_style_selectize", "",
                                                            choices=["Layer", "Stack"], selected="Stack")
-
-                                        inline_label("Cmap")
+                                        inline_label("Theme")
                                         ui.input_selectize("filled_areas_cmap_selectize", "",
                                                            choices=cat_cmaps, selected="tab10")
-
                                         inline_label("Opacity", pt="22px")
                                         ui.input_slider("filled_areas_alpha_slider", "",
                                                         min=0.2, max=1, step=0.05, value=1)
@@ -2002,7 +2064,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                        multiple=True, remove_button=True,
                                                        options={"maxItems": 8})
                                     max_lags = min([data.shape[0] // 2, 100])
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(6, 6), gap="10px"):
                                         ui.input_selectize("ac_plot_type_selectize", "Plot type",
                                                            choices=["ACF", "PACF"])
                                         ui.input_selectize("ac_plot_method_selectize", "Method", choices=[""])
@@ -2012,7 +2074,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                            choices=["80%", "85%", "90%", "95%", "99%"],
                                                            selected="95%")
 
-                                    with ui.layout_columns(col_widths=(3, 9)):
+                                    with ui.layout_columns(col_widths=(3, 9), gap="10px"):
                                         inline_label("Palette", pt="8px")
                                         with ui.layout_columns(col_widths=(5, 7), gap="2px"):
                                             @render.ui
@@ -2041,29 +2103,44 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
 
                             if dv_type not in ["Pair plot", "Radar chart", "ACF and PACF"]:
                                 with ui.nav_panel("Labels"):
-                                    ui.input_text("fig_title_text", "Title")
-                                    with ui.layout_columns(col_widths=(6, 6)):
+                                    with ui.layout_columns(col_widths=(8, 4), gap="10px"):
+                                        label_shift = inline_label(" ", pt="2px")
+                                        ui.input_text("fig_title_text", "Title")
+                                        ui.input_selectize("fig_title_size_selectize", label_shift,
+                                                           choices=[f"{i}pt" for i in range(6, 21)],
+                                                           selected="10pt", )
+                                        
                                         ui.input_text("fig_xlabel_text", "X-label")
+                                        ui.input_selectize("fig_xlabel_size_selectize", label_shift,
+                                                           choices=[f"{i}pt" for i in range(6, 21)],
+                                                           selected="10pt")
+                                        
                                         ui.input_text("fig_ylabel_text", "Y-label")
-                                            
-                                    locs = ["upper left", "upper right",
-                                            "lower left", "lower right"]    
-                                    ui.input_selectize("fig_legend_loc_selectize", "Legend location",
-                                                       choices=locs, selected=locs[0])
+                                        ui.input_selectize("fig_ylabel_size_selectize", label_shift,
+                                                           choices=[f"{i}pt" for i in range(6, 21)],
+                                                           selected="10pt")
+
+                                        locs = ["upper left", "upper center", "upper right", 
+                                                "center left", "center right", "center",
+                                                "lower left", "lower center", "lower right"]
+                                        ui.input_selectize("fig_legend_loc_selectize",
+                                                           "Legend", choices=locs)
+                                        ui.input_selectize("fig_legend_size_selectize", label_shift,
+                                                           choices=[f"{i}pt" for i in range(6, 21)],
+                                                           selected="10pt")
         
-                                    with ui.layout_columns(col_widths=(6, 6)):
-                                        ui.input_selectize("fig_fontsize_selectize", "Font size",
-                                                           choices=list(range(6, 21)), selected=10)
-                                        ui.input_numeric("fig_xtick_rotate_numeric", "Rotate X-ticks:",
+                                    with ui.layout_columns(col_widths=(5, 7), gap="10px"):
+                                        inline_label("Rotate X-ticks", pt="22px")
+                                        ui.input_slider("fig_xtick_rotate_numeric", "",
                                                          min=-90, max=90, step=10, value=0)
 
                             with ui.nav_panel("Figure"):
-
-                                ui.input_switch("fig_grid_switch", "Grid")
-                                            
-                                ui.markdown("Figure size")
-                                    
-                                with ui.layout_columns(col_widths=(3, 9)):
+                                with ui.layout_columns(col_widths=(5, -2, 5), gap="10px"):
+                                    ui.input_switch("fig_grid_switch", "Grid")
+                                    if dv_type not in ["Pair plot", "Radar chart", "ACF and PACF"]:
+                                        ui.input_switch("fig_equal_axis_switch", "Equal axis")
+                                with ui.layout_columns(col_widths=(12, 3, 9, 3, 9), gap="10px"):
+                                    ui.markdown("Figure size")
                                     inline_label('Width', '22px')
                                     ui.input_slider("fig_width_slider", "",
                                                     value=640, min=150, max=1500, step=5)
@@ -2388,10 +2465,17 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 @render.express
                                 def sklearn_regression_out_ui():
                                     mds_dict = mds.get()
+                                    print(mds_dict["type"])
                                     if mds_dict["type"] == "Regressor":
+                                        #ui.markdown("Output data include")
                                         ui.input_switch("sklearn_residual_switch", "Include residuals")
+                                        #ui.input_checkbox_group("sklearn_output_data_checkbox",
+                                        #                        inline_label("Additional output data", pt="10px"),
+                                        #                        choices=["Fitted values", "Residuals"])
                                 
-                                ui.input_checkbox_group("sklearn_outputs_checkbox", " ", choices=[])
+                                ui.input_checkbox_group("sklearn_outputs_checkbox",
+                                                        inline_label("Output figures", pt="10px"),
+                                                        choices=[])
 
                                 @render.express
                                 def sklearn_class_output_ui():
@@ -2982,8 +3066,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     else:
                         source = mds_dict["source"]
                         model = input.sklearn_model_selectize()
-                        model_view = dict(name=f"{md_type}: {model}", 
-                                        results=mds_dict["results"])
+                        model_view = dict(name=f"{md_type}: {model}",
+                                          results=mds_dict["results"])
 
                         code = "\n\n".join([seg for seg in source["code"].values() if seg != ""])
                         imports_dict = source["imports"]

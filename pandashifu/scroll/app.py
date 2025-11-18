@@ -100,7 +100,6 @@ def reg_pred(data, model, params={}):
         return x_pred, y_pred, pipe
 
 
-
 def two_class_data(n):
 
     data_dict = {}
@@ -677,7 +676,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 "(and supportive of the alternative hypothesis) as the sample data "
                                 "actually obtained. <br><br>"))
 
-                    with ui.card(height='400px'):
+                    with ui.card(height='500px'):
                         ui.card_header('The $P$-value approach to hypothesis testing',
                                        style=chd_style)
                         with ui.layout_sidebar():
@@ -686,8 +685,42 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 min=-4, max=4, value=-1.5, step=0.001)
                                 ui.input_slider(id='t_test_size', label='Sample size:',
                                                 min=5, max=200, value=25, step=1)
+                                
+                                ui.markdown("---")
+                                @render.ui
+                                def update_pvalue_mean_code():
+
+                                    test_type = input.ht_mean_test_type()
+                                    stat = input.t_test_value()
+                                    size = input.t_test_size()
+
+                                    if test_type == 'Left-tail test':
+                                        p_value = t.cdf(stat, size-1).round(4)
+                                        return ui.markdown(
+                                            '```python\n'
+                                            f't.cdf({stat}, df={size}-1)\n'
+                                            '```\n'
+                                            f'<code>{p_value}</code>\n'
+                                        )
+                                    elif test_type == 'Right-tail test':
+                                        p_value = (1 - t.cdf(stat, size-1)).round(4)
+                                        return ui.markdown(
+                                            '```python\n'
+                                            f'1 - t.cdf({stat}, df={size}-1)\n'
+                                            '```\n'
+                                            f'<code>{p_value}</code>\n'
+                                        )   
+                                    else:
+                                        p_value = (2 * (1 - t.cdf(np.abs(stat), size-1))).round(4)
+                                        right_code = f"1 - " if stat >=0 else ""
+                                        return ui.markdown(
+                                            '```python\n'
+                                            f'2 * ({right_code}t.cdf({stat}, df={size}-1))\n'
+                                            '```\n'
+                                            f'<code>{p_value}</code>\n'
+                                        )
                         
-                            @render.plot(width=520, height=320)
+                            @render.plot(width=520, height=420)
                             @reactive.event(input.ht_mean_test_type, 
                                             input.t_test_value, input.t_test_size)
                             def update_t_test_type():
@@ -805,7 +838,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 "(and supportive of the alternative hypothesis) as the sample data "
                                 "actually obtained. <br><br>"))
 
-                    with ui.card(height='400px'):
+                    with ui.card(height='500px'):
                         ui.card_header('The $P$-value approach to hypothesis testing',
                                     style=chd_style)
                         with ui.layout_sidebar():
@@ -814,8 +847,41 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                 min=-4, max=4, value=-1.5, step=0.001)
                                 ui.input_slider(id='z_test_size', label='Sample size:',
                                                 min=5, max=200, value=25, step=1)
+                                
+                                ui.markdown("---")
+                                @render.ui
+                                def update_pvalue_prop_code():
+
+                                    test_type = input.ht_prop_test_type()
+                                    stat = input.z_test_value()
+
+                                    if test_type == 'Left-tail test':
+                                        p_value = norm.cdf(stat).round(4)
+                                        return ui.markdown(
+                                            '```python\n'
+                                            f'norm.cdf({stat})\n'
+                                            '```\n'
+                                            f'<code>{p_value}</code>\n'
+                                        )
+                                    elif test_type == 'Right-tail test':
+                                        p_value = (1 - norm.cdf(stat)).round(4)
+                                        return ui.markdown(
+                                            '```python\n'
+                                            f'1 - norm.cdf({stat})\n'
+                                            '```\n'
+                                            f'<code>{p_value}</code>\n'
+                                        )   
+                                    else:
+                                        p_value = (2 * (1 - norm.cdf(np.abs(stat)))).round(4)
+                                        right_code = f"1 - " if stat >=0 else ""
+                                        return ui.markdown(
+                                            '```python\n'
+                                            f'2 * ({right_code}norm.cdf({stat}))\n'
+                                            '```\n'
+                                            f'<code>{p_value}</code>\n'
+                                        )
                         
-                            @render.plot(width=520, height=320)
+                            @render.plot(width=520, height=420)
                             @reactive.event(input.ht_prop_test_type, 
                                             input.z_test_value, input.z_test_size)
                             def update_z_test_type():
@@ -829,7 +895,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 fig, ax = plt.subplots()
                                 ax.plot(xs, pdf, color='k', linewidth=1.5, alpha=0.6,
                                         label='Standard normal distribution PDF')
-                                ax.set_title(f'{test_type} with $t_0={stat}$', fontsize=11)
+                                ax.set_title(f'{test_type} with $z_0={stat}$', fontsize=11)
                                 ax.scatter(stat, norm.pdf(stat), s=40, c='r', alpha=0.5)
                                 ax.plot([stat, stat], [0, norm.pdf(stat)], color='r', linestyle='--',
                                         label=f'Test statistic $z_0={stat}$')
@@ -1179,10 +1245,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             if rmse_max > 200:
                                 ymax = max([np.mean(rmse_dict["test"]), 200])
                                 ax2.set_ylim([-6, ymax*1.2])
-                            #ax2.set_ylim([1, 10 ** np.ceil(np.log10(rmse_max))])
-                            #ax2.set_ylim([-rmse_max*0.1,
-                            #              max([rmse_max*1.25, np.mean(rmse_dict['test'])*1.85])])
-                            
                             
                         ax2.set_xlabel("Experiements")
                         ax2.set_ylabel("RMSE", fontsize=11)
@@ -1190,11 +1252,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         ax2.grid()
 
                         return fig
-                
-                #@render.plot(width=550, height=200)
-                #def update_polyreg_records_plot():
-
-                #    ax, fig = plt.subplots(figsize=(5.5, 2))
 
         with ui.nav_panel("Predictive Modeling: Classification"):
             ui.markdown('### Fitting classes of various patterns')

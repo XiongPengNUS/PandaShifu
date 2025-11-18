@@ -451,6 +451,11 @@ def operation_source(op, name, data, ui_input, memory):
             copy_code = f"{copy_name} = {name}{copy_method}" if left == "" else f"{left}{name}{copy_method}"
             func_code = f"cluster.{method_map[method]}"
 
+            label_prefix = ui_input.clustering_label_prefix_text().strip()
+            value_prefix = ui_input.clustering_value_prefix_text().strip()
+            lp_code = "cluster_num" if label_prefix == "" else label_prefix
+            vp_code = "c" if value_prefix == "" else value_prefix
+
             cluster_params_code = ", max_iter=10000, random_state=0" if method == "K-means clustering" else ""
             if len(cluster_numbers) == 0:
                 return f"{left}{name}.copy()"
@@ -459,14 +464,14 @@ def operation_source(op, name, data, ui_input, memory):
                 fit_code = (
                     f"estimator = {func_code}(n_clusters={cn}{cluster_params_code})\n"
                     f"labels = estimator.fit_predict(scaled_features)\n"
-                    f"{copy_name}['cluster_num_{cn}'] = pd.Series(labels).apply(lambda x: f'c{{x}}')"
+                    f"{copy_name}['{lp_code}{cn}'] = pd.Series(labels).apply(lambda x: f'{vp_code}{{x}}')"
                 )
             else:
                 fit_code = (
                     f"for cn in {cluster_numbers.__repr__()}:\n"
                     f"    estimator = {func_code}(n_clusters=cn{cluster_params_code})\n"
                     f"    labels = estimator.fit_predict(scaled_features)\n"
-                    f"    {copy_name}[f'cluster_num_{{cn}}'] = pd.Series(labels).apply(lambda x: f'c{{x}}')"
+                    f"    {copy_name}[f'{lp_code}{{cn}}'] = pd.Series(labels).apply(lambda x: f'{vp_code}{{x}}')"
                 )
 
             if all_nums:
@@ -498,6 +503,7 @@ def operation_source(op, name, data, ui_input, memory):
         scaling = ui_input.decomposition_scaling_selectize()
         method = ui_input.decomposition_method_selectize()
         columns = to_selected_columns(ui_input.decomposition_columns_selectize(), data)
+        label_prefix = ui_input.decomposition_label_prefix_text().strip()
         max_nc = ui_input.decomposition_max_nc_slider()
 
         if scaling != "" and method != "" and len(columns) > 0:
@@ -536,12 +542,13 @@ def operation_source(op, name, data, ui_input, memory):
 
             drop_features = ui_input.decomposition_replace_feature_switch()
             drop_code = f"{copy_name}.drop(columns={columns}, inplace=True)\n" if drop_features  else ""
+            lp_code = "pc" if label_prefix == "" else label_prefix
             code = (
                 f"{copy_code}\n"
                 f"{xdata_code}\n"
                 f"{feature_code}"
                 f"components = {method}({', '.join(params)}).fit_transform({feature_data_code})\n"
-                f"{copy_name}[[f'pc{{i+1}}' for i in range({max_nc})]] = components\n"
+                f"{copy_name}[[f'{lp_code}{{i+1}}' for i in range({max_nc})]] = components\n"
                 f"{drop_code}"
                 f"{copy_name}"
             )
@@ -745,23 +752,29 @@ def visual_source(dv, name, data, ui_input, color, memory):
     color_code = "" if color == "#1f77b4" else f", color={color.__repr__()}"
 
     if dv in ["Pair plot", "Radar chart", "ACF and PACF"]:
-        fig_code = title_code = xlabel_code = ylabel_code = font_code = rotate_code = grid_code = ""
-        legend_loc = ""
+        fig_code = title_code = xlabel_code = ylabel_code = legend_loc = rotate_code = ""
+        grid_code = equal_axis_code = ""
+        font_code = ["", "", "", ""]
     else:
         fig_code = f"fig = plt.figure(figsize=({width}, {height}))\n"
         
-        fontsize = ui_input.fig_fontsize_selectize()
-        font_code = "" if int(fontsize) == 10 else f", fontsize={fontsize}"
+        fontsizes = [ui_input.fig_title_size_selectize(),
+                     ui_input.fig_xlabel_size_selectize(),
+                     ui_input.fig_ylabel_size_selectize(),
+                     ui_input.fig_legend_size_selectize()]
+        fontsizes = ["10" if fs == "" else fs[:-2] for fs in fontsizes]
+        font_code = ["" if int(fs) == 10 else f", fontsize={fs}"
+                     for fs in fontsizes]
 
         title = ui_input.fig_title_text().strip()
-        title_code = f"plt.title({title.__repr__()}{font_code})\n" if title != "" else ""
+        title_code = f"plt.title({title.__repr__()}{font_code[0]})\n" if title != "" else ""
 
         xlabel, ylabel = ui_input.fig_xlabel_text().strip(), ui_input.fig_ylabel_text().strip()
         special_dvs = ["Probability plot", "Histogram", "KDE", "Box plot", "Heat map", "Regression plot"]
         specify_xlabel = xlabel != "" or dv in special_dvs
         specify_ylabel = ylabel != "" or dv in special_dvs
-        xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code})\n" if specify_xlabel else ""
-        ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code})\n" if specify_ylabel else ""
+        xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code[1]})\n" if specify_xlabel else ""
+        ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code[2]})\n" if specify_ylabel else ""
 
         legend_loc = ui_input.fig_legend_loc_selectize()
         
@@ -775,6 +788,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
         rotate_code = f"plt.xticks(rotation={rotate}, ha={align.__repr__()})\n" if rotate_cond else ""
     
         grid_code = "plt.grid()\n" if ui_input.fig_grid_switch() else ""
+        equal_axis_code = "plt.gca().axis('equal')\n" if ui_input.fig_equal_axis_switch() else ""
 
     plot_code = ""
     if dv == "Value counts":
@@ -812,8 +826,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             common_code = f", common_norm={norm == "Jointly"}"
             style_code = f", multiple={style.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            title_font_code = f", title_fontsize={fontsize}" if fontsize != "10" else ""
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code}{title_font_code})\n"
+            title_font_code = f", title_fontsize={fontsizes[3]}" if fontsizes[3] != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[3]}{title_font_code})\n"
             break_code = f"\n             "
 
             if hue == "":
@@ -841,8 +855,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             common_code = f", common_norm={norm == "Jointly"}"
             style_code = f", multiple={style.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            title_font_code = f", title_fontsize={fontsize}" if fontsize != "10" else ""
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code}{title_font_code})\n"
+            title_font_code = f", title_fontsize={fontsizes[3]}" if fontsizes[3] != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[3]}{title_font_code})\n"
             break_code = f"\n            "
 
             if hue == "":
@@ -881,8 +895,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             mean_code = f", showmeans=True, {break_code}{mean_prop_code}" if mean else ""
             hue_code = f", hue={hue.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            title_font_code = f", title_fontsize={fontsize}" if fontsize != "10" else ""
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code}{title_font_code})\n"
+            title_font_code = f", title_fontsize={fontsizes[3]}" if fontsizes[3] != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[3]}{title_font_code})\n"
             if hue == "":
                 hue_code = cmap_code = legend_code = ""
                 break_code = " "
@@ -910,19 +924,24 @@ def visual_source(dv, name, data, ui_input, color, memory):
             data_code = f"{name}[{column.__repr__()}]"
             distr_code = "" if distr_str == "Normal" else f", dist={distr}"
             if ui_input.proba_plot_standardize_switch():
-                sample_code = "sample = (sample - sample.mean()) / sample.std()\n"
+                if distr_str == "Normal":
+                    sample_code = "sample = (sample - sample.mean()) / sample.std()\n"
+                elif distr_str == "Exponential":
+                    sample_code = "sample = sample / sample.mean()\n"
+                elif distr_str == "Uniform":
+                    sample_code = "sample = (sample - sample.min()) / (sample.max() - sample.min())\n"
+                else:
+                    sample_code = ""
+                line_code = "q"
             else:
                 sample_code = ""
+                line_code = "q"
             plot_code = (
                 f"sample = {data_code}\n"
                 f"{sample_code}"
-                f"sm.qqplot(sample{distr_code}, line='q',\n"
+                f"sm.qqplot(sample{distr_code}, line={line_code.__repr__()},\n"
                 f"          markeredgecolor='none'{color_code}{alpha_code}, ax=fig.gca())\n"
             )
-            #if xlabel == "":
-            #    xlabel_code = "plt.xlabel('')\n"
-            #if ylabel == "":
-            #    ylabel_code = "plt.ylabel('')\n"
             imports.extend(["import statsmodels.api as sm",
                             f"from scipy.stats import {distr}"])
 
@@ -958,7 +977,9 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 kws_code = f"plot_kws={{'alpha': {alpha}, 'edgecolor': 'none'}}"
 
             each_width, each_height = width/len(xcols), height/len(ycols)
-            all_grid_code = "[ax.grid() for ax in fig.axes]\n" if ui_input.fig_grid_switch() else ""
+            all_grid = ui_input.fig_grid_switch()
+            all_grid_code = "[ax.grid() for ax in fig.axes]\n" if all_grid else ""
+            #all_equal_grid_code = "[ax.set_aspect('equal', adjustable='box') for ax in fig.axes]\n" if all_equal_axis else ""
 
             plot_code = (
                 f"{cols_code}"
@@ -1031,7 +1052,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     legend_title_code = ""
                 else:
                     names = ['-' if name is None else str(name) for name in data.columns.names]
-                    legend_title_code = f"title={(', '.join(names)).__repr__()}, title_fontsize={fontsize}, "
+                    legend_title_code = f"title={(', '.join(names)).__repr__()}, title_fontsize={fontsizes[3]}, "
                 
                 if len(label_map) > 0:
                     legend_labels = [y if y not in label_map else label_map[y] for y in ydata]
@@ -1039,7 +1060,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     legend_title_code = ""
                 else:
                     label_code = ""
-                legend_code = f"plt.legend({label_code}{legend_title_code}loc={legend_loc.__repr__()}{font_code})\n"
+                legend_code = f"plt.legend({label_code}{legend_title_code}loc={legend_loc.__repr__()}{font_code[3]})\n"
 
             hide_xlabel_code = ", xlabel=''" if ui_input.fig_xlabel_text() == "" else ""
             hide_ylabel_code = ", ylabel=''" if ui_input.fig_ylabel_text() == "" else ""
@@ -1167,7 +1188,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
             )
             line_code.append(each_code)
 
-        legend_code = "" if len(line_code) < 2 else f"plt.legend(loc={legend_loc.__repr__()}{font_code})\n"
+        legend_code = "" if len(line_code) < 2 else f"plt.legend(loc={legend_loc.__repr__()}{font_code[3]})\n"
         plot_code = (
             f"{'\n'.join(line_code)}\n"
             f"{legend_code}"
@@ -1211,9 +1232,11 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 color_col = to_selected_columns(color_data, data)
                 color_col_code = f"{name}[{color_col.__repr__()}]"
                 label_code = ", label=cat"
+                legend_title_font_code = "" if font_code[3] == "" else f", title_fontsize={fontsizes[3]}"
+                fcode = f"{font_code[3]}{legend_title_font_code}"
                 scatter_legend_code = (
                     f"plt.legend(title={color_data.__repr__()}, "
-                    f"loc={legend_loc.__repr__()}{font_code})\n"
+                    f"loc={legend_loc.__repr__()}{fcode})\n"
                 )
                 continue_code = ""
                 if size_col != "":
@@ -1281,7 +1304,9 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 hue_order_code = f"hues = np.sort({name}[{color_data.__repr__()}].unique()).tolist()\n"
                 hue_code = f", hue={color_data.__repr__()}, hue_order=hues"
                 palette_code = f", palette={cmap.__repr__()}"
-                legend_code = f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{font_code})\n"
+                legend_title_font_code = "" if font_code[3] == "" else f", title_fontsize={fontsizes[3]}"
+                fcode = f"{font_code[3]}{legend_title_font_code}"
+                legend_code = f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{fcode})\n"
                 centroid_code = f"centroid = {name}.groupby({color_data.__repr__()})[{xydata_code}].mean()\n"
                 centroid_color_code = ""
                 imports.append("import numpy as np")
@@ -1326,7 +1351,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 for_code = "for i, c in enumerate(columns):\n"
                 indent_code = "    "
                 label_code = f", label=c"
-                legend_code = f"plt.legend(loc={legend_loc.__repr__()}{font_code})\n"
+                legend_code = f"plt.legend(loc={legend_loc.__repr__()}{font_code[3]})\n"
                 if style != "Stack":
                     bottom_init_code = ""
                     y1_code = f", y1={name}[c]"
@@ -1427,6 +1452,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
             f"{ylabel_code}"
             f"{rotate_code}"
             f"{grid_code}"
+            f"{equal_axis_code}"
         )
 
     code = (
@@ -1810,10 +1836,8 @@ def statsmodels_outputs_source(ui_input):
     name_out = ui_input.statsmodels_output_text().strip()
     
     code = (
-        #f"{name_out} = pd.concat((result.params, result.bse, result.tvalues, result.pvalues), axis=1)\n"
         f"{name_out} = result.summary2().tables[1]\n"
-        f"{name_out}.columns = ['coef', 'std err', 't-values', 'p-vlaues', 'CI-lower', 'CI-upper']\n"
-        #f"{name_out}[['CI-lower', 'CI-upper']] = result.conf_int()\n"
+        f"{name_out}.columns = ['coef', 'std err', 't-values', 'p-values', 'CI-lower', 'CI-upper']\n"
         f"{name_out}"
     )
 
