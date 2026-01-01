@@ -4,42 +4,155 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from pandas.api.types import is_numeric_dtype, is_bool_dtype
+from pandas.api.types import is_string_dtype, is_datetime64_dtype, is_timedelta64_dtype
 from collections.abc import Iterable
 from numbers import Real
 
 
 model_hypers = {
     "LinearRegression": [],
-    "Ridge": [("alpha", "Shrinkage parameter alpha", "1.0")],
-    "Lasso": [("alpha", "Shrinkage parameter alpha", "1.0")],
-    "KNeighborsRegressor": [("n_neighbors", "Number of neighbors", "5")],
+    "Ridge": [("alpha", "Shrinkage parameter alpha", "1.0",
+               ("Constant that multiplies the L2 term, controlling regularization strength. "
+                "It must be a non-negative real number i.e. in [0, inf)."))],
+    "Lasso": [("alpha", "Shrinkage parameter alpha", "1.0",
+               ("Constant that multiplies the L1 term, controlling regularization strength. "
+                "It must be a non-negative real number i.e. in [0, inf)."))],
+    "KNeighborsRegressor": [("n_neighbors", "Number of neighbors", "5",
+                             "Number of neighbors to use for local interpolation of the targets.")],
     "DecisionTreeRegressor": [
-        ("max_depth", "Max tree depth", "None"),
-        ("min_samples_split", "Min samples split", "2"),
-        ("min_samples_leaf", "Min samples leaf", "1"),
-        ("max_leaf_nodes", "Max leaf nodes", "None")
+        ("max_depth", "Max tree depth", "None", 
+         ("The maximum depth of the tree. If None, then nodes are expanded until "
+          "all leaves are pure or until all leaves contain less than minimum samples per split.")),
+        ("min_samples_split", "Min samples split", "2", 
+         ("The minimum number of samples required to split an internal node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("min_samples_leaf", "Min samples leaf", "1", 
+         ("The minimum number of samples required to be at a leaf node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("max_leaf_nodes", "Max leaf nodes", "None", 
+         ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
+          "If unspecified, the tree may grow to unlimited number of leaf nodes."))
     ],
     "RandomForestRegressor": [
-        ("max_depth", "Max tree depth", "None"),
-        ("min_samples_split", "Min samples split", "2"),
-        ("min_samples_leaf", "Min samples leaf", "1"),
-        ("max_leaf_nodes", "Max leaf nodes", "None"),
-        ("max_features", "Max features", "1.0")
+        ("max_depth", "Max tree depth", "None", 
+         ("The maximum depth of the tree. If None, then nodes are expanded until "
+          "all leaves are pure or until all leaves contain less than minimum samples per split.")),
+        ("min_samples_split", "Min samples split", "2", 
+         ("The minimum number of samples required to split an internal node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("min_samples_leaf", "Min samples leaf", "1", 
+         ("The minimum number of samples required to be at a leaf node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("max_leaf_nodes", "Max leaf nodes", "None", 
+         ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
+          "If unspecified, the tree may grow to unlimited number of leaf nodes.")),
+        ("max_features", "Max features", "1.0", 
+         ("The number of features to consider when looking for the best split. "
+          "If specified as an integer, it represents the actual number of features. "
+          "If specified as a float, it represents a fraction of the total number of features. "
+          "If unspecified, all features are considered.")),
     ],
-    "LogisticRegression": [("C", "Inverse regularization C", "1.0")],
-    "KNeighborsClassifier": [("n_neighbors", "Number of neighbors", "5")],
+    "GradientBoostingRegressor": [
+        ("max_depth", "Max tree depth", "None", 
+         ("The maximum depth of the tree. If None, then nodes are expanded until "
+          "all leaves are pure or until all leaves contain less than minimum samples per split.")),
+        ("min_samples_split", "Min samples split", "2", 
+         ("The minimum number of samples required to split an internal node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("min_samples_leaf", "Min samples leaf", "1", 
+         ("The minimum number of samples required to be at a leaf node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("max_leaf_nodes", "Max leaf nodes", "None", 
+         ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
+          "If unspecified, the tree may grow to unlimited number of leaf nodes.")),
+        ("max_features", "Max features", "1.0", 
+         ("The number of features to consider when looking for the best split. "
+          "If specified as an integer, it represents the actual number of features. "
+          "If specified as a float, it represents a fraction of the total number of features. "
+          "If unspecified, all features are considered.")),
+        ("learning_rate", "Learning rate", "0.1", 
+         ("Learning rate shrinks the contribution of each tree. "
+          "It must be in a non-negative real number i.e. in [0, inf).")),
+        ("subsample", "Sub-sample", "1.0", 
+         ("The fraction of samples to be used for fitting the individual base learners. "
+          "If smaller than 1.0 this results in Stochastic Gradient Boosting. "
+          "It must be in the range (0.0, 1.0]."))
+    ],
+    "LogisticRegression": [("C", "Inverse regularization C", "1.0", 
+                            ("Inverse of regularization strength (1/alpha). "
+                             "It must be a positive real number."))],
+    "KNeighborsClassifier": [("n_neighbors", "Number of neighbors", "5",
+                              "Number of neighbors to use for local voting of the target classes.")],
     "DecisionTreeClassifier": [
-        ("max_depth", "Max tree depth", "None"),
-        ("min_samples_split", "Min samples split", "2"),
-        ("min_samples_leaf", "Min samples leaf", "1"),
-        ("max_leaf_nodes", "Max leaf nodes", "None")
+        ("max_depth", "Max tree depth", "None", 
+         ("The maximum depth of the tree. If None, then nodes are expanded until "
+          "all leaves are pure or until all leaves contain less than minimum samples per split.")),
+        ("min_samples_split", "Min samples split", "2", 
+         ("The minimum number of samples required to split an internal node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("min_samples_leaf", "Min samples leaf", "1", 
+         ("The minimum number of samples required to be at a leaf node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("max_leaf_nodes", "Max leaf nodes", "None", 
+         ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
+          "If unspecified, the tree may grow to unlimited number of leaf nodes."))
     ],
     "RandomForestClassifier": [
-        ("max_depth", "Max tree depth", "None"),
-        ("min_samples_split", "Min samples split", "2"),
-        ("min_samples_leaf", "Min samples leaf", "1"),
-        ("max_leaf_nodes", "Max leaf nodes", "None"),
-        ("max_features", "Max features", "sqrt")
+        ("max_depth", "Max tree depth", "None", 
+         ("The maximum depth of the tree. If None, then nodes are expanded until "
+          "all leaves are pure or until all leaves contain less than minimum samples per split.")),
+        ("min_samples_split", "Min samples split", "2", 
+         ("The minimum number of samples required to split an internal node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("min_samples_leaf", "Min samples leaf", "1", 
+         ("The minimum number of samples required to be at a leaf node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("max_leaf_nodes", "Max leaf nodes", "None", 
+         ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
+          "If unspecified, the tree may grow to unlimited number of leaf nodes.")),
+        ("max_features", "Max features", "1.0", 
+         ("The number of features to consider when looking for the best split. "
+          "If specified as an integer, it represents the actual number of features. "
+          "If specified as a float, it represents a fraction of the total number of features. "
+          "If unspecified, it is specified as the square root of the total number of features.")),
+    ],
+    "GradientBoostingClassifier": [
+        ("max_depth", "Max tree depth", "None", 
+         ("The maximum depth of the tree. If None, then nodes are expanded until "
+          "all leaves are pure or until all leaves contain less than minimum samples per split.")),
+        ("min_samples_split", "Min samples split", "2", 
+         ("The minimum number of samples required to split an internal node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("min_samples_leaf", "Min samples leaf", "1", 
+         ("The minimum number of samples required to be at a leaf node. "
+          "If specified as an integer, it is the actual minimum sample counts. "
+          "If specified as a float, it represents a fraction of the total number of samples.")),
+        ("max_leaf_nodes", "Max leaf nodes", "None", 
+         ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
+          "If unspecified, the tree may grow to unlimited number of leaf nodes.")),
+        ("max_features", "Max features", "1.0", 
+         ("The number of features to consider when looking for the best split. "
+          "If specified as an integer, it represents the actual number of features. "
+          "If specified as a float, it represents a fraction of the total number of features. "
+          "If unspecified, all features are considered.")),
+        ("learning_rate", "Learning rate", "0.1", 
+         ("Learning rate shrinks the contribution of each tree. "
+          "It must be in a non-negative real number i.e. in [0, inf).")),
+        ("subsample", "Sub-sample", "1.0", 
+         ("The fraction of samples to be used for fitting the individual base learners. "
+          "If smaller than 1.0 this results in Stochastic Gradient Boosting. "
+          "It must be in the range (0.0, 1.0]."))
     ],
 }
 
@@ -174,7 +287,7 @@ def operation_source(op, name, data, ui_input, memory):
     elif op == "Boolean conditions":
         current_column = ui_input.filter_column_selectize()
         current_operator = ui_input.filter_operator_selectize()
-        if current_operator in ["is True", "not True"]:
+        if current_operator in ["is True", "is False"]:
             current_value_str = None
         else:
             current_value_str = ui_input.filter_value_text().strip()
@@ -200,8 +313,8 @@ def operation_source(op, name, data, ui_input, memory):
                     iter_values = [iter_values]
                 not_code = "~" if operator == "not in" else ""
                 opr_code = f".isin({iter_values})"
-            elif operator in ["is True", "not True"]:
-                not_code = "~" if operator == "not True" else ""
+            elif operator in ["is True", "is False"]:
+                not_code = "~" if operator == "is False" else ""
                 opr_code = ""
             else:
                 not_code = ""
@@ -414,6 +527,75 @@ def operation_source(op, name, data, ui_input, memory):
                     f"{copy_name}"
                 )
     
+    elif op == "Date time":
+        column = to_selected_columns(ui_input.date_time_column_selectize(), data)
+        result_list = ui_input.date_time_to_columns_selectize()
+
+        if column != "" and len(result_list) > 0:
+            format = ui_input.date_time_format_text().strip()
+            prefix = ui_input.date_time_to_columns_prefix_text().strip()
+            prefix_code = "" if prefix == "" else f"{prefix}_"
+            if left == "":
+                copy_code = f"{name}_copy = {name}.copy()"
+                copy_name = f"{name}_copy"
+            else:
+                copy_code = f"{left}{name}.copy()"
+                copy_name = name_out
+            
+            format_code = "format=None" if format == "" else f"format={format.__repr__()}"
+            if is_datetime64_dtype(data[column]) or is_timedelta64_dtype(data[column]):
+                date_time_code = f"{name}[{column.__repr__()}]"
+            else:
+                date_time_code = f"pd.to_datetime({name}[{column.__repr__()}], {format_code})"
+                imports.append("import pandas as pd")
+            
+            result_code = ""
+            for res in result_list:
+                if res in "timestamp":
+                    res_code = "ts"
+                elif res == "duration":
+                    res_code = "td"
+                elif res == "month_name":
+                    res_code = "ts.dt.month_name()"
+                elif res in ["year", "month", "day", "hour", "minute", "second"]:
+                    res_code = f"ts.dt.{res}"
+                else:
+                    factor_code = ("" if res == "seconds" else
+                                   "/ 60" if res == "minutes" else
+                                   "/ 3600" if res == "hours" else "/ 86400")
+                    res_code = f"td.dt.total_seconds(){factor_code}"
+                result_code += f"{copy_name}['{prefix_code}{res}'] = {res_code}\n"
+
+            if not is_timedelta64_dtype(data[column]):
+                if ui_input.date_time_td_switch():
+                    start_time_code = date_time_code
+                    end_date = ui_input.date_time_calendar()
+                    end_time = (f"{ui_input.date_time_clock_hour_numerics():02d}:"
+                                f"{ui_input.date_time_clock_minute_numerics():02d}:"
+                                f"{ui_input.date_time_clock_second_numerics():02d}")
+                    end_time_code = f"pd.to_datetime('{end_date} {end_time}')"
+                    if ui_input.date_time_duration_reverse_switch():
+                        start_time_code, end_time_code = end_time_code, start_time_code
+                    inter_code = (
+                        f"start_time = {start_time_code}\n"
+                        f"end_time = {end_time_code}\n"
+                        f"td = end_time - start_time\n"
+                    )
+                    if "import pandas as pd" not in imports:
+                        imports.append("import pandas as pd")
+                else:
+                    inter_code = f"ts = {date_time_code}\n"
+            else:
+                inter_code = f"td = {date_time_code}\n"
+            
+            if res_code[:2] == inter_code.split("\n")[-2][:2]:
+                code = (
+                    f"{copy_code}\n"
+                    f"{inter_code}"
+                    f"{result_code}"
+                    f"{copy_name}"
+                )
+
     elif op == "ANOVA":
         formula = ui_input.anova_formula_text()
         if formula != "":
@@ -698,10 +880,6 @@ def operation_source(op, name, data, ui_input, memory):
                 expr = f"{copy_name}[{from_columns}].astype({formula})"
             elif exp_type == "String operations":
                 expr = f"{copy_name}[{from_columns}].str{formula}"
-            elif exp_type == "To date time":
-                format_code = "" if formula == "None" or formula == "" else f", format={formula.__repr__()}"
-                expr = f"pd.to_datetime({copy_name}[{from_columns}]{format_code})"
-                imports.append("import pandas as pd")
             elif exp_type == "To dummies":
                 drop_code = ", drop_first=True" if ui_input.add_cols_drop_switch() else ""
                 cat_code = '{cat}'
@@ -727,7 +905,6 @@ def operation_source(op, name, data, ui_input, memory):
                     labels_code = ""
                 expr = f"pd.cut({copy_name}[{from_columns}], bins={bins.__repr__()}{labels_code}).astype(str)"
                 imports.append("import pandas as pd")
-            
             transform_code = f"\n{prep_code}{copy_name}[{to_columns_repr}] = {expr}"
 
         code = (
@@ -757,24 +934,22 @@ def visual_source(dv, name, data, ui_input, color, memory):
         font_code = ["", "", "", ""]
     else:
         fig_code = f"fig = plt.figure(figsize=({width}, {height}))\n"
-        
-        fontsizes = [ui_input.fig_title_size_selectize(),
-                     ui_input.fig_xlabel_size_selectize(),
-                     ui_input.fig_ylabel_size_selectize(),
-                     ui_input.fig_legend_size_selectize()]
-        fontsizes = ["10" if fs == "" else fs[:-2] for fs in fontsizes]
-        font_code = ["" if int(fs) == 10 else f", fontsize={fs}"
-                     for fs in fontsizes]
-
+        title_fontsize = ui_input.fig_title_size_selectize()
+        fontsizes = ["10" if fs == "" else fs[:-2]
+                     for fs in [ui_input.fig_xlabel_size_selectize(),
+                                ui_input.fig_ylabel_size_selectize(),
+                                ui_input.fig_legend_size_selectize()]]
+        title_font_code = "" if title_fontsize in ["12pt", ""] else f", fontsize={title_fontsize[:-2]}"
+        font_code = ["" if int(fs) == 10 else f", fontsize={fs}" for fs in fontsizes]
         title = ui_input.fig_title_text().strip()
-        title_code = f"plt.title({title.__repr__()}{font_code[0]})\n" if title != "" else ""
+        title_code = f"plt.title({title.__repr__()}{title_font_code})\n" if title != "" else ""
 
         xlabel, ylabel = ui_input.fig_xlabel_text().strip(), ui_input.fig_ylabel_text().strip()
         special_dvs = ["Probability plot", "Histogram", "KDE", "Box plot", "Heat map", "Regression plot"]
         specify_xlabel = xlabel != "" or dv in special_dvs
         specify_ylabel = ylabel != "" or dv in special_dvs
-        xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code[1]})\n" if specify_xlabel else ""
-        ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code[2]})\n" if specify_ylabel else ""
+        xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code[0]})\n" if specify_xlabel else ""
+        ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code[1]})\n" if specify_ylabel else ""
 
         legend_loc = ui_input.fig_legend_loc_selectize()
         
@@ -786,7 +961,6 @@ def visual_source(dv, name, data, ui_input, color, memory):
         elif dv == "Heat map":
             rotate_cond = not ui_input.heatmap_top_tick_switch()
         rotate_code = f"plt.xticks(rotation={rotate}, ha={align.__repr__()})\n" if rotate_cond else ""
-    
         grid_code = "plt.grid()\n" if ui_input.fig_grid_switch() else ""
         equal_axis_code = "plt.gca().axis('equal')\n" if ui_input.fig_equal_axis_switch() else ""
 
@@ -826,8 +1000,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             common_code = f", common_norm={norm == "Jointly"}"
             style_code = f", multiple={style.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            title_font_code = f", title_fontsize={fontsizes[3]}" if fontsizes[3] != "10" else ""
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[3]}{title_font_code})\n"
+            title_font_code = f", title_fontsize={fontsizes[2]}" if fontsizes[2] != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[2]}{title_font_code})\n"
             break_code = f"\n             "
 
             if hue == "":
@@ -855,8 +1029,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             common_code = f", common_norm={norm == "Jointly"}"
             style_code = f", multiple={style.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            title_font_code = f", title_fontsize={fontsizes[3]}" if fontsizes[3] != "10" else ""
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[3]}{title_font_code})\n"
+            title_font_code = f", title_fontsize={fontsizes[2]}" if fontsizes[2] != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[2]}{title_font_code})\n"
             break_code = f"\n            "
 
             if hue == "":
@@ -895,8 +1069,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
             mean_code = f", showmeans=True, {break_code}{mean_prop_code}" if mean else ""
             hue_code = f", hue={hue.__repr__()}"
             cmap_code = f", palette={cmap.__repr__()}"
-            title_font_code = f", title_fontsize={fontsizes[3]}" if fontsizes[3] != "10" else ""
-            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[3]}{title_font_code})\n"
+            title_font_code = f", title_fontsize={fontsizes[2]}" if fontsizes[2] != "10" else ""
+            legend_code = f"sns.move_legend(fig.gca(), loc={legend_loc.__repr__()}{font_code[2]}{title_font_code})\n"
             if hue == "":
                 hue_code = cmap_code = legend_code = ""
                 break_code = " "
@@ -1011,10 +1185,6 @@ def visual_source(dv, name, data, ui_input, color, memory):
             )
             imports.append("import seaborn as sns")
 
-            #xlabel, ylabel = ui_input.fig_xlabel_text().strip(), ui_input.fig_ylabel_text().strip()
-            #xlabel_code = f"plt.xlabel({xlabel.__repr__()}{font_code})\n"
-            #ylabel_code = f"plt.ylabel({ylabel.__repr__()}{font_code})\n"
-
     elif dv == "Bar chart":
         current_ydata = ui_input.bar_ydata_selectize()
         current_color = color
@@ -1052,7 +1222,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     legend_title_code = ""
                 else:
                     names = ['-' if name is None else str(name) for name in data.columns.names]
-                    legend_title_code = f"title={(', '.join(names)).__repr__()}, title_fontsize={fontsizes[3]}, "
+                    legend_title_code = f"title={(', '.join(names)).__repr__()}, title_fontsize={fontsizes[2]}, "
                 
                 if len(label_map) > 0:
                     legend_labels = [y if y not in label_map else label_map[y] for y in ydata]
@@ -1060,15 +1230,16 @@ def visual_source(dv, name, data, ui_input, color, memory):
                     legend_title_code = ""
                 else:
                     label_code = ""
-                legend_code = f"plt.legend({label_code}{legend_title_code}loc={legend_loc.__repr__()}{font_code[3]})\n"
+                legend_code = f"plt.legend({label_code}{legend_title_code}loc={legend_loc.__repr__()}{font_code[2]})\n"
 
             hide_xlabel_code = ", xlabel=''" if ui_input.fig_xlabel_text() == "" else ""
             hide_ylabel_code = ", ylabel=''" if ui_input.fig_ylabel_text() == "" else ""
             
             alpha = ui_input.bar_alpha_slider()
             alpha_code = "" if alpha == 1 else f", alpha={alpha}"
-            if ui_input.bar_sort_switch():
-                descending_code = ", ascending=False" if ui_input.bar_sort_descending_switch() else ""
+            sort_type = ui_input.bar_sort_type_selectize()
+            if sort_type in ["Ascending", "Descending"]:
+                descending_code = ", ascending=False" if sort_type == "Descending" else ""
                 sort_by = to_selected_columns(ui_input.bar_sort_by_selectize(), data)
                 if sort_by == "":
                     sort_code = f"sorted = {name}.sort_index({descending_code.replace(', ', '')})\n"
@@ -1188,7 +1359,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
             )
             line_code.append(each_code)
 
-        legend_code = "" if len(line_code) < 2 else f"plt.legend(loc={legend_loc.__repr__()}{font_code[3]})\n"
+        legend_code = "" if len(line_code) < 2 else f"plt.legend(loc={legend_loc.__repr__()}{font_code[2]})\n"
         plot_code = (
             f"{'\n'.join(line_code)}\n"
             f"{legend_code}"
@@ -1232,8 +1403,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 color_col = to_selected_columns(color_data, data)
                 color_col_code = f"{name}[{color_col.__repr__()}]"
                 label_code = ", label=cat"
-                legend_title_font_code = "" if font_code[3] == "" else f", title_fontsize={fontsizes[3]}"
-                fcode = f"{font_code[3]}{legend_title_font_code}"
+                legend_title_font_code = "" if font_code[2] == "" else f", title_fontsize={fontsizes[2]}"
+                fcode = f"{font_code[2]}{legend_title_font_code}"
                 scatter_legend_code = (
                     f"plt.legend(title={color_data.__repr__()}, "
                     f"loc={legend_loc.__repr__()}{fcode})\n"
@@ -1304,8 +1475,8 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 hue_order_code = f"hues = np.sort({name}[{color_data.__repr__()}].unique()).tolist()\n"
                 hue_code = f", hue={color_data.__repr__()}, hue_order=hues"
                 palette_code = f", palette={cmap.__repr__()}"
-                legend_title_font_code = "" if font_code[3] == "" else f", title_fontsize={fontsizes[3]}"
-                fcode = f"{font_code[3]}{legend_title_font_code}"
+                legend_title_font_code = "" if font_code[2] == "" else f", title_fontsize={fontsizes[2]}"
+                fcode = f"{font_code[2]}{legend_title_font_code}"
                 legend_code = f"plt.legend(title={color_data.__repr__()}, loc={legend_loc.__repr__()}{fcode})\n"
                 centroid_code = f"centroid = {name}.groupby({color_data.__repr__()})[{xydata_code}].mean()\n"
                 centroid_color_code = ""
@@ -1351,7 +1522,7 @@ def visual_source(dv, name, data, ui_input, color, memory):
                 for_code = "for i, c in enumerate(columns):\n"
                 indent_code = "    "
                 label_code = f", label=c"
-                legend_code = f"plt.legend(loc={legend_loc.__repr__()}{font_code[3]})\n"
+                legend_code = f"plt.legend(loc={legend_loc.__repr__()}{font_code[2]})\n"
                 if style != "Stack":
                     bottom_init_code = ""
                     y1_code = f", y1={name}[c]"
@@ -1550,6 +1721,13 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
 
     cat_predictors = []
     if predicted != "" and len(predictors) > 0:
+        var_columns = [predicted] + predictors
+        dropna_code = ""
+        has_na = data[to_selected_columns(var_columns, data)].isnull().any()
+        if has_na.any():
+            dropna_columns = np.array(var_columns)[has_na.values].tolist()
+            dropna_code = f"{name}_copy = {name}.dropna(subset={dropna_columns})\n"
+            name = f"{name}_copy"
         if ui_input.model_formula_switch():
             formula = f"0 + {ui_input.statsmodels_formula_text().strip()}"
             independent_vars_code = (
@@ -1576,8 +1754,9 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
                 )
             else:
                 dummy_code = ""
-        
+
         code_step1 = (
+            f"{dropna_code}"
             f"y = {name}[{predicted.__repr__()}]\n"
             f"{independent_vars_code}"
             f"{dummy_code}"
@@ -1650,14 +1829,15 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         imports_step2.append(f"from sklearn.neighbors import {model}")
     elif model in ["DecisionTreeRegressor", "DecisionTreeClassifier"]:
         imports_step2.append(f"from sklearn.tree import {model}")
-    elif model in ["RandomForestRegressor", "RandomForestClassifier"]:
+    elif model in ["RandomForestRegressor", "RandomForestClassifier",
+                   "GradientBoostingRegressor", "GradientBoostingClassifier"]:
         imports_step2.append(f"from sklearn.ensemble import {model}")
 
     args = []
-    if model != "":
+    if model != "" and model != "No available model":
         hyper_list = model_hypers[model]
         reg_name = "__regressor" if log_trans else ""
-        for hyper, label, default_value in hyper_list:
+        for hyper, label, default_value, param_doc in hyper_list:
             values_str = str_to_numstr(eval(f"ui_input.sklearn_{model.lower()}_{hyper}()"))
             values = eval(values_str) if isinstance(values_str, str) else []
             if len(values) == 1:
@@ -1668,14 +1848,15 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     if model in ["Lasso", "LogisticRegression"]:
         args.append("max_iter=1000000")
     elif model in ["DecisionTreeRegressor", "DecisionTreeClassifier",
-                   "RandomForestRegressor", "RandomForestClassifier"]:
+                   "RandomForestRegressor", "RandomForestClassifier",
+                   "GradientBoostingRegressor", "GradientBoostingClassifier"]:
         args.append("random_state=0")
 
     if len(cat_predictors) > 0:
         dummy_code = "    ('dummy', to_dummies),\n"
     else:
         dummy_code = ""
-    if model != "":
+    if model != "" and model != "No available model":
         if len(params) > 0:
             params_code = (
                 "params = {\n"
@@ -1850,7 +2031,8 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
     name_out = ui_input.sklearn_output_text().strip()
 
     test_set = ui_input.sklearn_test_set_switch()
-    row_index = "x_train.index" if test_set else ":"
+    x_name = "x_train" if test_set else "x"
+    #row_index = "x_train.index" if test_set else "x.index"
     y_label = ui_input.model_dependent_selectize() 
     if mds_dict["type"] == "Classifier":
         predicted = "proba"
@@ -1864,11 +2046,11 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
         
         if default:
             label = f"{y_label}_pred".__repr__()
-            decision_cv_code = f"\n{name_out}.loc[{row_index}, {label}] = yhat_cv"
+            decision_cv_code = f"\n{name_out}.loc[{x_name}.index, {label}] = yhat_cv"
             decision_test_code = f"{name_out}.loc[x_test.index, {label}] = yhat_test\n"
         else:
             label = f"{y_label}_is_{target_class}".__repr__()
-            decision_cv_code = f"\n{name_out}.loc[{row_index}, {label}] = proba_cv[:, index] > threshold"
+            decision_cv_code = f"\n{name_out}.loc[{x_name}.index, {label}] = proba_cv[:, index] > threshold"
             decision_test_code = f"{name_out}.loc[x_test.index, {label}] = proba_test[:, index] > threshold\n"
         resid_code = ""
     else:
@@ -1892,10 +2074,9 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
     else:
         save_test_code = ""
     
-    
     code = (
         f"{name_out} = {name}.copy()\n"
-        f"{name_out}.loc[{row_index}, {pred_cols.__repr__()}] = {predicted}_cv"
+        f"{name_out}.loc[{x_name}.index, {pred_cols.__repr__()}] = {predicted}_cv"
         f"{decision_cv_code}"
         f"{save_test_code}"
         f"{resid_code}"
@@ -1935,7 +2116,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
                 "            edgecolor='r', facecolor='none', alpha=0.3, label='Test')\n"
             )
         code = (
-            "fig = plt.figure(figsize=(4.2, 4.2))\n"
+            "fig = plt.figure(figsize=(3.9, 3.9))\n"
             f"ymin = min(yhat_cv.min(){test_min}, {y_name}.min())\n"
             f"ymax = max(yhat_cv.max(){test_max}, {y_name}.max())\n"
             f"plt.scatter(yhat_cv, {y_name}, linewidth=2,\n"
@@ -1963,7 +2144,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             ymin_code = "ymin = yhat_cv.min()\n"
             ymax_code = "ymax = yhat_cv.max()\n"
         code = (
-            "fig = plt.figure(figsize=(4.2, 4.2))\n"
+            "fig = plt.figure(figsize=(3.9, 3.9))\n"
             f"resid_cv = {y_name} - yhat_cv\n"
             f"{test_resid_code}"
             f"{ymin_code}"
@@ -2003,7 +2184,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             f"                       {columns_code})\n"
             "cmat_cv.index.name = 'Actual'\n"
             "cmat_cv.columns.name = 'Predicted'\n"
-            f"fig = plt.figure(figsize=(4.2, 4.5))\n"
+            f"fig = plt.figure(figsize=(3.9, 4.2))\n"
             "sns.heatmap(cmat_cv, annot=True, cmap='YlGn', cbar=False, ax=fig.gca())\n"
             "plt.title('Cross-validation')\n"
             "plt.show()"
@@ -2022,7 +2203,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
                 f"                         {columns_code})\n"
                 "cmat_test.index.name = 'Actual'\n"
                 "cmat_test.columns.name = 'Predicted'\n"
-                f"fig = plt.figure(figsize=(4.2, 4.5))\n"
+                f"fig = plt.figure(figsize=(3.9, 4.2))\n"
                 "sns.heatmap(cmat_test, annot=True, cmap='YlGn', cbar=False, ax=fig.gca())\n"
                 "plt.title('Test')\n"
                 "plt.show()"
@@ -2036,7 +2217,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         rows = "[x_train.index]" if test_set else ""
         code = (
             f"fpr, tpr, thresholds = roc_curve(y_target{rows}, proba_cv[:, index])\n"
-            "fig = plt.figure(figsize=(4.2, 4.5))\n"
+            "fig = plt.figure(figsize=(3.9, 4.2))\n"
             "plt.fill_between(fpr, tpr, color='orange', alpha=0.3, zorder=0, label='AUC')\n"
             "plt.plot(fpr, tpr, linewidth=2, color='b', zorder=1, label='ROC')\n"
             "k = np.argmin(abs(thresholds - threshold))\n"
@@ -2061,7 +2242,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         code = (
             f"precision, recall, thresholds = precision_recall_curve(y_target{rows}, proba_cv[:, index])\n"
             f"f1 = f1_score(y_target{rows}, proba_cv[:, index] > threshold)\n"
-            "fig = plt.figure(figsize=(4.2, 4.5))\n"
+            "fig = plt.figure(figsize=(3.9, 4.2))\n"
             "plt.plot(recall, precision, linewidth=2, color='b', zorder=0)\n"
             "k = np.argmin(abs(thresholds - threshold))\n"
             "plt.scatter(recall[k], precision[k], s=80, linewidth=2, edgecolor='b', facecolor='lightblue')\n"
@@ -2070,6 +2251,43 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             "plt.title('Cross-validation')\n"
             "plt.xlabel('Recall')\n"
             "plt.ylabel('Precision')\n"
+            "plt.grid()\n"
+            "plt.show()"
+        )
+        source.append(dict(type="plot", code=code, imports=imports, fig=None))
+    
+    if "Feature importance" in plots and page == 4:
+        
+        regressor_code = ""
+        if mds_dict["type"] == "Regressor":
+            if ui_input.sklearn_predicted_log_switch():
+                regressor_code = ".regressor_"
+        if "PCA" in mds_dict["source"]["code"][2]:
+            index_code = f"['PC{{i+1}}' for i in range(model.named_steps['pca'].n_components_)]"
+        elif "OneHotEncoder" in mds_dict["source"]["code"][1]:
+            index_code = "model.named_steps['dummy'].get_feature_names_out()"
+        else:
+            index_code = f"{x_name}.columns"
+        
+        trained_model = mds_dict["memory"]["model"]
+        if 'dummy' in trained_model.named_steps:
+            feature_names = trained_model.named_steps['dummy'].get_feature_names_out().tolist()
+        else:
+            feature_names = mds_dict["memory"]["x"].columns.tolist()
+        feature_number = ui_input.sklearn_feature_importance_number_slider()
+        longest_name = max([len(fn) for fn in feature_names[-feature_number:]])
+        fig_width = (450 + longest_name*8) // 200 * 2
+        fig_height = feature_number*0.3 + 1.5
+        iloc_code = "" if feature_number == len(feature_names) else f".iloc[-{feature_number}:]"
+        code = (
+            f"fig = plt.figure(figsize=({fig_width:.2f}, {fig_height:.2f}))\n"
+            f"feature_index = {index_code}\n"
+            f"importances = pd.Series(model[-1]{regressor_code}.feature_importances_,\n"
+            f"                        feature_index).sort_values(ascending=True){iloc_code}\n"
+            "plt.barh(importances.index, importances.values, color='b', alpha=0.5)\n"
+            "plt.xlabel('Importance')\n"
+            "plt.ylabel('Features')\n"
+            "plt.title('Feature Importance')\n"
             "plt.grid()\n"
             "plt.show()"
         )
