@@ -646,7 +646,9 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                 maxItems = len(selected) - 1 if len(selected) > 1 else 0
                                 ui.update_selectize("counts_ops_unstack_selectize",
                                                     choices=selected, selected=[],
-                                                    options={"placeholder": "None", "maxItems": maxItems})
+                                                    options={"placeholder": "None",
+                                                             "maxItems": maxItems,
+                                                             "plugins": ["remove_button"]})
 
                             with ui.layout_columns(col_widths=(6, 6), gap="10px"):
                                 @render.express(inline=True)
@@ -797,11 +799,13 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             ui.input_selectize("nan_columns_selectize", "Columns", choices=[""]+nan_columns,
                                                multiple=True, remove_button=True,
                                                options={"placeholder": "All columns"})
-                            ui.input_selectize("nan_method_selectize", "Method", choices=["drop", "fill"])
+                            ui.input_selectize("nan_method_selectize", "Method", choices=["drop", "fill", "mark"])
                             @render.express
                             def nan_conditional_ui():
                                 if input.nan_method_selectize() == "fill":
                                     ui.input_text("nan_fill_value_text", "Value to fill")
+                                elif input.nan_method_selectize() == "mark":
+                                    ui.input_text("nan_mark_value_label", "To column")
                                 elif input.nan_method_selectize() == "drop":
                                     ui.input_switch("nan_reset_switch", "Reset index")
                         elif op_type == "Time trend":

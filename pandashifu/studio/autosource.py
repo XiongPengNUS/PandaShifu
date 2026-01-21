@@ -467,6 +467,23 @@ def operation_source(op, name, data, ui_input, memory):
                         f"{copy_name}.loc[:, columns] = {name}.loc[:, columns].fillna({value_str})\n"
                         f"{copy_name}"
                     )
+        elif method == "mark":
+            mark_column = ui_input.nan_mark_value_label().strip()
+            if mark_column != "":
+                if left == "":
+                    copy_code = f"{name}_copy = {name}.copy()"
+                    copy_name = f"{name}_copy"
+                else:
+                    copy_code = f"{left}{name}.copy()"
+                    copy_name = name_out
+                
+                treat_data = f"{name}" if treat_all else f"{name}[{columns.__repr__()}]"
+                code = (
+                    f"{copy_code}\n"
+                    f"missing = {treat_data}.isnull().any(axis=1)\n"
+                    f"{copy_name}[{mark_column.__repr__()}] = missing\n"
+                    f"{copy_name}"
+                )
     
     elif op == "Time trend":
         columns = to_selected_columns(ui_input.time_trend_columns_selectize(), data)
@@ -1352,9 +1369,10 @@ def visual_source(dv, name, data, ui_input, color, memory):
             else:
                 margin_code = ""
 
+            line_label_code = "" if label_str == "#" else f", label={label_str.__repr__()}"
             each_code = (
                 f"plt.plot({xdata_code}{ydata_code}{color_code},\n"
-                f"         {width_code}{style_code}{marker_code}{scale_code}, label={label_str.__repr__()})"
+                f"         {width_code}{style_code}{marker_code}{scale_code}{line_label_code})"
                 f"{margin_code}"
             )
             line_code.append(each_code)
