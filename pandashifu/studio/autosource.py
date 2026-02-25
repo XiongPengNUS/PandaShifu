@@ -1738,25 +1738,20 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     imports_step1 = []
 
     cat_predictors = []
+    formula = ""
     if predicted != "" and len(predictors) > 0:
-        var_columns = [predicted] + predictors
-        dropna_code = ""
-        has_na = data[to_selected_columns(var_columns, data)].isnull().any()
-        if has_na.any():
-            dropna_columns = np.array(var_columns)[has_na.values].tolist()
-            dropna_code = f"{name}_copy = {name}.dropna(subset={dropna_columns})\n"
-            name = f"{name}_copy"
         if ui_input.model_formula_switch():
             formula = f"0 + {ui_input.statsmodels_formula_text().strip()}"
-            independent_vars_code = (
-                f"x = dmatrix({formula.__repr__()}, {name},\n"
-                f"            return_type='dataframe')"
-            )
+            formula_code = f"x_labels = {formula.__repr__()}"
+            #independent_vars_code = (
+            #    f"x = dmatrix({formula.__repr__()}, {name},\n"
+            #    f"            return_type='dataframe')"
+            #)
+            #x_formula_code = 
             dummy_code = ""
-            imports_step1.extend(["import numpy as np",
-                                  "from patsy import dmatrix"])
         else:
-            independent_vars_code = f"x = {name}[{predictors.__repr__()}]"
+            #independent_vars_code = f"x = {name}[{predictors.__repr__()}]"
+            formula_code = f"x_labels = {predictors.__repr__()}"
             _, cat_predictors, _ = num_cat_labels(data[to_selected_columns(predictors, data)])
             cat_predictors += list(ui_input.model_numeric_cats_selectize())
 
@@ -1774,9 +1769,9 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
                 dummy_code = ""
 
         code_step1 = (
-            f"{dropna_code}"
-            f"y = {name}[{predicted.__repr__()}]\n"
-            f"{independent_vars_code}"
+            f"y_label = {predicted.__repr__()}\n"
+            #f"x_labels = {predictors.__repr__()}"
+            f"{formula_code}"
             f"{dummy_code}"
         )
 
@@ -1914,19 +1909,39 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         scoring_code = ""
         score_name = "R-squared"
         #imports_step3.append("from sklearn.model_selection import cross_val_predict")
-    test_set = ui_input.sklearn_test_set_switch()
+    #test_set = ui_input.sklearn_test_set_switch()
+    test_method = ui_input.sklearn_test_method_selectize()
+    test_set = test_method in ["Train-test split", "Missing responses for test"]
+    test_set = test_set or (test_method == "Boolean selection" and ui_input.sklearn_test_boolean_selectize() != "")
     if test_set:
-        split_code = (
-            "x_train, x_test, y_train, y_test = "
-            f"train_test_split(x, y, test_size={ui_input.sklearn_test_ratio_numeric()}, random_state=0)\n"
-        )
+        if test_method == "Train-test split":
+            split_code = (
+                "x_train, x_test, y_train, y_test = "
+                f"train_test_split(x, y, test_size={ui_input.sklearn_test_ratio_numeric()}, random_state=0)\n"
+            )
+            imports_step3.append("from sklearn.model_selection import train_test_split")
+        elif test_method == "Boolean selection":
+            test_bool_col = ui_input.sklearn_test_boolean_selectize()
+            split_code = (
+                f"is_test = {name}['{test_bool_col}']\n"
+                f"x_train, y_train = x.loc[~is_test], y.loc[~is_test]\n"
+                f"x_test, y_test = x.loc[is_test], y.loc[is_test]\n"
+            )
+        elif test_method == "Missing responses for test":
+            split_code = (
+                f"is_test = y.isnull()\n"
+                f"x_train, y_train, x_test, y_test = x.loc[~is_test], y.loc[~is_test], x.loc[is_test], None\n"
+            )
+
         y_name, x_name = "y_train", "x_train"
-        test_code = (
-            "\n\nmodel.fit(x_train, y_train)\n"
-            f"test_score = model.score(x_test, y_test{scoring_code})\n"
-            "print(f'Test score: {test_score:.4f}')"
-        )
-        imports_step3.append("from sklearn.model_selection import train_test_split")
+        if test_method != "Missing responses for test":
+            test_code = (
+                "\n\nmodel.fit(x_train, y_train)\n"
+                f"test_score = model.score(x_test, y_test{scoring_code})\n"
+                "print(f'Test score: {test_score:.4f}')"
+            )
+        else:
+            test_code = ""
     else:
         split_code = ""
         y_name, x_name = "y", "x"
@@ -1973,7 +1988,30 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         test_pred_code = ""
         #decision_test_code = ""
 
+    dropna_code = ""
+    var_columns = predictors
+    if predicted != "":
+        if test_method != "Missing responses for test":
+            var_columns = predictors + [predicted]
+        has_na = data[to_selected_columns(var_columns, data)].isnull().any()
+        if has_na.any():
+            dropna_columns = np.array(var_columns)[has_na.values].tolist()
+            dropna_code = f"{name}_copy = {name}.dropna(subset={dropna_columns})\n"
+            name = f"{name}_copy"
+    
+    if formula != "":
+        xform_code = (
+            f"x = dmatrix(x_labels, {name}, return_type='dataframe')"
+        )
+        imports_step3.extend(["import numpy as np",
+                              "from patsy import dmatrix"])
+    else:
+        xform_code = f"x = {name}[x_labels]"
+        
     code_step3 = (
+        f"{dropna_code}"
+        f"y = {name}[y_label]\n"
+        f"{xform_code}\n\n"
         f"folds = {ui_input.sklearn_cv_folds_numeric()}\n"
         f"cv = KFold(n_splits=folds, shuffle=True, random_state=0)\n"
         f"{split_code}"
@@ -1987,8 +2025,6 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         f"{test_code}\n\n"
         f"{pred_name}_cv = cross_val_predict(model, {x_name}, {y_name}{pred_method_code}, cv=cv)"
         f"{test_pred_code}"
-        #f"{decision_cv_code}"
-        #f"{decision_test_code}"
     )
 
     imports_step4 = []
@@ -2000,7 +2036,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         default = target_class == ""
         threshold = 0.5 if default else ui_input.sklearn_class_threshold_slider()
 
-        if default:      ######################################
+        if default:
             decision_cv_code = f"yhat_cv = cross_val_predict(model, {x_name}, {y_name}, cv=cv)"
             decision_test_code = "\nyhat_test = model.predict(x_test)"
             imports_step4.append("from sklearn.model_selection import cross_val_predict")
@@ -2048,13 +2084,17 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
     imports = []
     name_out = ui_input.sklearn_output_text().strip()
 
-    test_set = ui_input.sklearn_test_set_switch()
-    x_name = "x_train" if test_set else "x"
+    #test_set = ui_input.sklearn_test_set_switch()
+    test_method = ui_input.sklearn_test_method_selectize()
+    test_set = test_method in ["Train-test split", "Missing responses for test"]
+    test_set = test_set or (test_method == "Boolean selection" and ui_input.sklearn_test_boolean_selectize() != "")
+    
+    x_name = "x_train" if test_method not in ["None", ""] else "x"
     #row_index = "x_train.index" if test_set else "x.index"
     y_label = ui_input.model_dependent_selectize() 
     if mds_dict["type"] == "Classifier":
         predicted = "proba"
-        classes = np.unique(data[y_label]).tolist()
+        classes = np.unique(data[y_label].dropna().tolist()).tolist()
         pred_cols = [f"{y_label}_proba_{c}" for c in classes]
 
         target_class = ui_input.sklearn_class_selectize()
@@ -2083,11 +2123,17 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
             resid_code = ""
 
     if test_set:
+        if test_method == "Train-test split":
+            split_label_code = (
+                f"{name_out}.loc[x_train.index, 'split'] = 'cross-validation'\n"
+                f"{name_out}.loc[x_test.index, 'split'] = 'test'"
+            )
+        else:
+            split_label_code = ""
         save_test_code = (
             f"\n{name_out}.loc[x_test.index, {pred_cols.__repr__()}] = {predicted}_test\n"
             f"{decision_test_code}"
-            f"{name_out}.loc[x_train.index, 'split'] = 'cross-validation'\n"
-            f"{name_out}.loc[x_test.index, 'split'] = 'test'"
+            f"{split_label_code}"
         )
     else:
         save_test_code = ""
@@ -2106,7 +2152,10 @@ def sklearn_outputs_source(mds_dict, name, data, ui_input):
 def sklearn_plots_source(mds_dict, name, data, ui_input, page):
 
     y_label = ui_input.model_dependent_selectize() 
-    test_set = ui_input.sklearn_test_set_switch()
+    #test_set = ui_input.sklearn_test_set_switch()
+    test_method = ui_input.sklearn_test_method_selectize()
+    test_set = test_method in ["Train-test split", "Missing responses for test"]
+    test_set = test_set or (test_method == "Boolean selection" and ui_input.sklearn_test_boolean_selectize() != "")
     plots = ui_input.sklearn_outputs_checkbox()
 
     if mds_dict["type"] == "Classifier" and page == 4:
@@ -2127,12 +2176,14 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
     imports = ["import matplotlib.pyplot as plt"]
     source = []
     if "Prediction plot" in plots and page == 4:
-        if test_set:
+        if test_method in ["Train-test split", "Boolean selection"]:
             test_min, test_max = ", yhat_test.min()", ", yhat_test.max()"
             test_plot_code = (
                 "plt.scatter(yhat_test, y_test, linewidth=2,\n"
                 "            edgecolor='r', facecolor='none', alpha=0.3, label='Test')\n"
             )
+        elif test_method == "Missing responses for test":
+            test_plot_code = ""
         code = (
             "fig = plt.figure(figsize=(3.9, 3.9))\n"
             f"ymin = min(yhat_cv.min(){test_min}, {y_name}.min())\n"
@@ -2150,7 +2201,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         source.append(dict(type="plot", code=code, imports=imports, fig=None))
     
     if "Residual plot" in plots and page == 4:
-        if test_set:
+        if test_method in ["Train-test split", "Boolean selection"]:
             test_resid_code = "resid_test = y_test - yhat_test\n"
             test_plot_code = (
                 "plt.scatter(yhat_test, resid_test, linewidth=2,\n"
@@ -2186,7 +2237,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
 
         rows = "[x_train.index]" if test_set else ""
         default = target_class == ""
-        classes = np.unique(data[y_label]).tolist()
+        classes = np.unique(data[y_label].dropna().tolist()).tolist()
         if default:
             args = f"{y_name}, yhat_cv"
             index_code = f"index={classes.__repr__()},"
@@ -2209,7 +2260,7 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         )
         source.append(dict(type="plot", code=code, imports=imports, fig=None))
 
-        if test_set:
+        if test_method in ["Train-test split", "Boolean selection"]:
             default = target_class == ""
             if default:
                 args = f"y_test, yhat_test"

@@ -2649,12 +2649,38 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     ui.input_numeric("sklearn_cv_folds_numeric", "",
                                                      min=2, max=100, step=1, value=5)
                             
-                                ui.input_switch("sklearn_test_set_switch", "Test ratio")
+                                #ui.input_switch("sklearn_test_set_switch", "Test ratio")
+                                #test_method_choices = ["None", "Train-test split", "Boolean selection"]
+                                #predicted = input.model_dependent_selectize()
+                                #print('here')
+                                #if data[to_selected_columns(predicted, data)].isnull().any():
+                                #    test_method_choices.append("Missing responses for test")
+                                ui.input_selectize("sklearn_test_method_selectize", "Test set",
+                                                   choices=[])
+                                
+                                @reactive.effect
+                                @reactive.event(input.model_dependent_selectize)
+                                def sklearn_test_method_choices_update():
+                                    choices = ["None", "Train-test split", "Boolean selection"]
+                                    data = node_input.get()["data"]
+                                    predicted = input.model_dependent_selectize()
+                                    if predicted != "":
+                                        if data[to_selected_columns(predicted, data)].isnull().any():
+                                            choices.append("Missing responses for test")
+                                    ui.update_selectize("sklearn_test_method_selectize", choices=choices)
+
                                 @render.express
                                 def sklearn_test_ratio_shown():
-                                    if input.sklearn_test_set_switch():
+                                    #if input.sklearn_test_set_switch():
+                                    if input.sklearn_test_method_selectize() == "Train-test split":
                                         ui.input_numeric("sklearn_test_ratio_numeric", "",
                                                          min=0.05, max=0.5, step=0.05, value=0.25)
+                                    elif input.sklearn_test_method_selectize() == "Boolean selection":
+                                        data = node_input.get()["data"]
+                                        others = set(data.columns) - set(input.model_independent_selectize())
+                                        col_bools = others.intersection(set(col_cats)).intersection(set(col_nbs))
+                                        ui.input_selectize("sklearn_test_boolean_selectize", "",
+                                                           choices=[""] + list(col_bools))
                                 
                                 ui.input_task_button("sklearn_fitting_button", "Fit model",
                                                      label_busy="Running...", width="100%")
@@ -2684,7 +2710,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             if is_bool_dtype(data[dependent]):
                                                 class_choices = ["False", "True"]
                                             else:
-                                                class_choices = np.unique(data[dependent]).tolist()
+                                                class_choices = np.unique(data[dependent].dropna().tolist()).tolist()
                                             inline_label("Target class")
                                             ui.input_selectize("sklearn_class_selectize", "",
                                                                choices=[""] + class_choices, selected="",
@@ -2936,7 +2962,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     mds_dict = mds.get()
                     current_imports = mds_dict["source"]["imports"][3]
                     current_code = mds_dict["source"]["code"][3].replace("print", "")
-                    test_set = input.sklearn_test_set_switch()
+                    test_method = input.sklearn_test_method_selectize()
                     try:
                         sklearn_ns = {}
                         exec("\n".join(current_imports), sklearn_ns)
@@ -2944,6 +2970,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         for key, value in memory.items():
                             sklearn_ns[key] = value
                         exec(current_code, sklearn_ns)
+                        mds_dict["memory"]["x"] = eval("x", sklearn_ns)
+                        mds_dict["memory"]["y"] = eval("y", sklearn_ns)                
                         name_save = input.sklearn_output_text().strip()
                         if name_save != "":
                             invalid = invalid_name(name_save, error=True)
@@ -2965,7 +2993,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             mds_dict["memory"]["estimator"] = eval("model", sklearn_ns)
 
                         train_result = f"\n\nTraining score: {eval('train_score', sklearn_ns):.4f}"
-                        if test_set:
+                        test_score_available = "test_score" in sklearn_ns
+                        if test_score_available:
                             test_result = f"\nTest score: {eval('test_score', sklearn_ns):.4f}"
                         else:
                             test_result = ""
@@ -2987,6 +3016,9 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                         else:
                             variables.append("proba_cv")
                         
+                        test_set = test_method in ["Train-test split", "Missing responses for test"]
+                        test_set = test_set or (test_method == "Boolean selection" and 
+                                                input.sklearn_test_boolean_selectize() != "")
                         if test_set:
                             variables.extend(["x_train", "x_test", "y_train", "y_test"])
                             if mds_dict["type"] == "Regressor":
@@ -3001,8 +3033,8 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     md_memory.set(dict(result=result))
                 
                 @reactive.effect
-                @reactive.event(input.sklearn_test_set_switch)
-                def sklearn_test_set_switch_update():
+                @reactive.event(input.sklearn_test_method_selectize)
+                def sklearn_test_set_method_selectize_update():
                     if md_page.get() == 3:
                         md_memory.set({})
 
@@ -3115,8 +3147,11 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     mds_dict["memory"]["formula_err"] = None
                                     try:
                                         exec(current_code, sklearn_ns)
-                                        mds_dict["memory"]["x"] = eval("x", sklearn_ns)
-                                        mds_dict["memory"]["y"] = eval("y", sklearn_ns)
+                                        #mds_dict["memory"]["x"] = eval("x", sklearn_ns)
+                                        #mds_dict["memory"]["y"] = eval("y", sklearn_ns)
+                                        mds_dict["memory"][name] = eval(name, sklearn_ns)
+                                        mds_dict["memory"]["x_labels"] = eval("x_labels", sklearn_ns)
+                                        mds_dict["memory"]["y_label"] = eval("y_label", sklearn_ns)
                                         if "to_dummies = " in current_code:
                                             mds_dict["memory"]["to_dummies"] = eval("to_dummies", sklearn_ns)
                                     except Exception as err:
@@ -3206,7 +3241,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                             threshold = input.sklearn_class_threshold_slider()
                                             mds_dict["memory"]["threshold"] = threshold
                                             mds_dict["memory"]["target"] = target_class
-                                            classes = np.unique(data[y_label]).tolist()
+                                            classes = np.unique(data[y_label].dropna().tolist()).tolist()
                                             index = classes.index(target_class) if target_class in classes else 0
                                             mds_dict["memory"]["index"] = index
                                             mds_dict["memory"]["y_target"] = (data[y_label] == target_class)
@@ -3278,7 +3313,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                 
                 @reactive.effect
                 @reactive.event(input.sklearn_fitting_button, input.sklearn_output_text,
-                                input.sklearn_test_set_switch, input.sklearn_page_next_button)
+                                input.sklearn_test_method_selectize, input.sklearn_page_next_button)
                 def save_sklearn_button_disable():
                     
                     memory = md_memory.get()
@@ -3286,7 +3321,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                     if "result" in memory:
                         invalid = invalid_name(input.sklearn_output_text().strip())
                         disabled = (not isinstance(memory["result"], str)) or (md_page.get() < 4) or invalid
-                    
+
                     ui.update_action_button("save_model_button", disabled=disabled)
 
                 #@reactive.effect

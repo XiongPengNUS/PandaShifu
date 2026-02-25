@@ -87,7 +87,9 @@ ops_menu_dict = {
             "Method": (
                 "The method for treating the missing values: "
                 "<code>drop</code> for removing rows with missing values; "
-                "or <code>fill</code> for replacing the missing records by a given value."
+                "<code>fill</code> for replacing the missing records by a given value; "
+                "or <code>mark</code> for creating a new column of boolean values indicating "
+                "the presence of missing values."
             ),
             "Value to fill": (
                 "Value to fill missing entries with. "
@@ -663,9 +665,8 @@ sklearn_page_dict = [
         ),
         {
             "CV Folds": "The number of folds for cross-validation.",
-            "Test ratio": (
-                "A test set will be split from the overall dataset if it is switched on. "
-                "You may then specify the ratio of the test dataset."
+            "Test set": (
+                "Method for splitting the test set. "
             ),
             "Fit model": "Fit the model with the current training and validation settings."
         }
