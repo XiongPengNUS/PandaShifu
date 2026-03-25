@@ -697,8 +697,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     if col in col_nbs and col not in col_nums:
                                         ui.HTML("")
                                     else:
-                                    #    show_filter_value = False
-                                    #if show_filter_value:
                                         ui.input_text("filter_value_text", "Value(s) to compare")
 
                                 ui.HTML("")
@@ -715,10 +713,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         filter_operators = ["", "==", "!=", "<=", "<", ">=", ">", "in", "not in"]
                                     ui.update_selectize("filter_operator_selectize", choices=filter_operators)
 
-                            #with ui.layout_columns(col_widths=(5, 7)):
-                            #    ui.HTML("")
-                            #    ui.input_action_button("add_filter_button", "New bool")
-                            
                             @reactive.effect
                             @reactive.event(input.filter_column_selectize,
                                             input.filter_operator_selectize,
@@ -2611,17 +2605,17 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         return
                                     hyper_list = model_hypers[model_name]
                                     
-                                    if len(hyper_list) == 1:
-                                        hyper, label_string, default_value, param_doc = hyper_list[0]
-                                        with ui.card_header(style="padding-bottom:10px;border:none"):
-                                            ui.HTML(f"{label_string} &nbsp;")
-                                            with ui.popover(id=f"sklearn_{model_name.lower()}_{hyper}_popover",
-                                                            placement="right"):
-                                                question_circle_fill
-                                                ui.HTML(param_doc)
-                                        ui.input_text(f"sklearn_{model_name.lower()}_{hyper}", "",
-                                                      placeholder=default_value)
-                                    elif len(hyper_list) > 1:
+                                    if len(hyper_list) <= 2:
+                                        for hyper, label_string, default_value, param_doc in hyper_list:
+                                            with ui.card_header(style="padding-bottom:10px;border:none"):
+                                                ui.HTML(f"{label_string} &nbsp;")
+                                                with ui.popover(id=f"sklearn_{model_name.lower()}_{hyper}_popover",
+                                                                placement="right"):
+                                                    question_circle_fill
+                                                    ui.HTML(param_doc)
+                                            ui.input_text(f"sklearn_{model_name.lower()}_{hyper}", "",
+                                                          placeholder=default_value)
+                                    elif len(hyper_list) > 2:
                                         with ui.layout_columns(col_widths=(7, 5), gap="10px"):
                                             for hyper, label_string, default_value, param_doc in hyper_list:
                                                 with ui.card_header(style="padding-top:6px;border:none"):
@@ -2630,7 +2624,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                                     placement="right"):
                                                         question_circle_fill
                                                         ui.HTML(param_doc)
-                                                #inline_label(label_string)
                                                 ui.input_text(f"sklearn_{model_name.lower()}_{hyper}", "",
                                                               placeholder=default_value)
                     

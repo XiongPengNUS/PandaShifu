@@ -86,7 +86,10 @@ model_hypers = {
     ],
     "LogisticRegression": [("C", "Inverse regularization C", "1.0", 
                             ("Inverse of regularization strength (1/alpha). "
-                             "It must be a positive real number."))],
+                             "It must be a positive real number.")),
+                           ("l1_ratio", "L1 ratio", "0.0", 
+                            ("The proportion of the regularization that is L1. "
+                             "It must be a real number in the range [0, 1]."))],
     "KNeighborsClassifier": [("n_neighbors", "Number of neighbors", "5",
                               "Number of neighbors to use for local voting of the target classes.")],
     "DecisionTreeClassifier": [
@@ -120,7 +123,7 @@ model_hypers = {
         ("max_leaf_nodes", "Max leaf nodes", "None", 
          ("Grow a tree with the specified maximum number of leaf nodes in best-first fashion. "
           "If unspecified, the tree may grow to unlimited number of leaf nodes.")),
-        ("max_features", "Max features", "1.0", 
+        ("max_features", "Max features", "sqrt", 
          ("The number of features to consider when looking for the best split. "
           "If specified as an integer, it represents the actual number of features. "
           "If specified as a float, it represents a fraction of the total number of features. "
@@ -1858,8 +1861,13 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
             elif len(values) > 1:
                 params.append(f"    '{model.lower()}{reg_name}__{hyper}': {values_str}")
     
-    if model in ["Lasso", "LogisticRegression"]:
+    if model == "Lasso":
         args.append("max_iter=1000000")
+    elif model == "LogisticRegression":
+        args.append("max_iter=1000000")
+        l1_ratio_value = eval(f"ui_input.sklearn_logisticregression_l1_ratio()").strip()
+        if l1_ratio_value != "":
+            args.extend(["solver='saga'", "random_state=0"])
     elif model in ["DecisionTreeRegressor", "DecisionTreeClassifier",
                    "RandomForestRegressor", "RandomForestClassifier",
                    "GradientBoostingRegressor", "GradientBoostingClassifier"]:
