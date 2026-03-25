@@ -2,11 +2,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import sklearn
 
 from pandas.api.types import is_numeric_dtype, is_bool_dtype
 from pandas.api.types import is_string_dtype, is_datetime64_dtype, is_timedelta64_dtype
 from collections.abc import Iterable
 from numbers import Real
+
+from packaging import version
 
 
 model_hypers = {
@@ -1868,6 +1871,8 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         l1_ratio_value = eval(f"ui_input.sklearn_logisticregression_l1_ratio()").strip()
         if l1_ratio_value != "":
             args.extend(["solver='saga'", "random_state=0"])
+            if version.parse(sklearn.__version__) < version.parse("1.8.0"):
+                args.append("penalty='elasticnet'")
     elif model in ["DecisionTreeRegressor", "DecisionTreeClassifier",
                    "RandomForestRegressor", "RandomForestClassifier",
                    "GradientBoostingRegressor", "GradientBoostingClassifier"]:

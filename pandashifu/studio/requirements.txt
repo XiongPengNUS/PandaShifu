@@ -5,6 +5,6 @@ scipy
 xlsxwriter >= 3.2.0
 matplotlib
 seaborn
-scikit-learn >= 1.8.0
+scikit-learn
 imbalanced-learn
 statsmodels
