@@ -2345,9 +2345,12 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             if ui_input.sklearn_predicted_log_switch():
                 regressor_code = ".regressor_"
         if "PCA" in mds_dict["source"]["code"][2]:
-            index_code = f"['PC{{i+1}}' for i in range(model.named_steps['pca'].n_components_)]"
+            index_code = f"[f'PC{{i+1}}' for i in range(model.named_steps['pca'].n_components_)]"
         elif "OneHotEncoder" in mds_dict["source"]["code"][1]:
-            index_code = "model.named_steps['dummy'].get_feature_names_out()"
+            index_code = (
+                f"[name.replace('cats__', '').replace('remainder__', '')\n{' '*17}"
+                "for name in model.named_steps['dummy'].get_feature_names_out()]"
+            )
         else:
             index_code = f"{x_name}.columns"
         
