@@ -2637,13 +2637,27 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                         question_circle_fill
                                         ui.HTML(doc_html(sklearn_page_dict[2]))
 
-                                with ui.layout_columns(col_widths=(4, 8), px="5px"):
+                                with ui.layout_columns(col_widths=(4, 8), gap="5px"):
                                     inline_label("CV Folds")
                                     ui.input_numeric("sklearn_cv_folds_numeric", "",
                                                      min=2, max=100, step=1, value=5)
-                            
+                                    
+                                    inline_label("Score")
+                                    @render.express
+                                    #@reactive.event(input.model_dependent_selectize)
+                                    def sklearn_score_metric_ui():
+                                        _ = input.model_dependent_selectize()
+                                        mds_dict = mds.get()
+                                        if mds_dict["type"] == "Regressor":
+                                            choices = ["R-squared", "Negative RMSE"]
+                                        else:
+                                            choices = ["AUC", "Accuracy"]
+                                        ui.input_selectize("sklearn_score_metric_selectize", "", 
+                                                           choices=choices, selected=choices[0],
+                                                           options={"placeholder": choices[0]})
+
                                 ui.input_selectize("sklearn_test_method_selectize", "Test set",
-                                                   choices=[])
+                                                   choices=[], options={"placeholder": "None"})
                                 
                                 @reactive.effect
                                 @reactive.event(input.model_dependent_selectize)
@@ -2990,7 +3004,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             params_code = ""
                             mds_dict["memory"]["estimator"] = eval("model", sklearn_ns)
 
-                        train_result = f"\n\nTraining score: {eval('train_score', sklearn_ns):.4f}"
+                        #train_result = f"\n\nTraining score: {eval('train_score', sklearn_ns):.4f}"
                         test_score_available = "test_score" in sklearn_ns
                         if test_score_available:
                             test_result = f"\nTest score: {eval('test_score', sklearn_ns):.4f}"
@@ -3001,7 +3015,7 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             f"{params_code}"
                             f"{eval('table', sklearn_ns)}\n\n"
                             f"Cross-validation score: {eval('score', sklearn_ns).mean():.4f}"
-                            f"{train_result}"
+                            #f"{train_result}"
                             f"{test_result}"
                         )        
                     except Exception as err:

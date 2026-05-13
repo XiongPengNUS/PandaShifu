@@ -1765,11 +1765,6 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         if ui_input.model_formula_switch():
             formula = f"0 + {ui_input.statsmodels_formula_text().strip()}"
             formula_code = f"x_labels = {formula.__repr__()}"
-            #independent_vars_code = (
-            #    f"x = dmatrix({formula.__repr__()}, {name},\n"
-            #    f"            return_type='dataframe')"
-            #)
-            #x_formula_code = 
             dummy_code = ""
         else:
             #independent_vars_code = f"x = {name}[{predictors.__repr__()}]"
@@ -1931,14 +1926,24 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     imports_step3 = ["from sklearn.model_selection import KFold",
                      "from sklearn.model_selection import cross_val_predict",
                      "import pandas as pd", "import numpy as np"]
-    if mds_dict["type"] == "Classifier":
-        scoring_code = ", scoring='roc_auc_ovr'"
-        score_name = "AUC"
-    else:
-        scoring_code = ""
-        score_name = "R-squared"
-        #imports_step3.append("from sklearn.model_selection import cross_val_predict")
-    #test_set = ui_input.sklearn_test_set_switch()
+    score_code_dict = {"": "",
+                       "R-squared": "",
+                       "Negative RMSE": ", scoring='neg_root_mean_squared_error'",
+                       "Accuracy": "",
+                       "AUC": ", scoring='roc_auc'",
+                       "F1": ", scoring='f1'"}
+    score_name = "" if page <3 else ui_input.sklearn_score_metric_selectize()
+    if score_name == "":
+        score_name = "R-squared" if mds_dict["type"] == "Regressor" else "AUC"
+    scoring_code = score_code_dict[score_name]
+    
+    #if mds_dict["type"] == "Classifier":
+    #    scoring_code = ", scoring='roc_auc_ovr'"
+    #    score_name = "AUC"
+    #else:
+    #    scoring_code = ""
+    #    score_name = "R-squared"
+    
     test_method = ui_input.sklearn_test_method_selectize()
     test_set = test_method in ["Train-test split", "Missing responses for test"]
     test_set = test_set or (test_method == "Boolean selection" and ui_input.sklearn_test_boolean_selectize() != "")
@@ -1965,9 +1970,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         y_name, x_name = "y_train", "x_train"
         if test_method != "Missing responses for test":
             test_code = (
-                "\n\nmodel.fit(x_train, y_train)\n"
-                f"test_score = model.score(x_test, y_test{scoring_code})\n"
-                "print(f'Test score: {test_score:.4f}')"
+                "\nmodel.fit(x_train, y_train)\n"
             )
         else:
             test_code = ""
@@ -2008,14 +2011,28 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         pred_method_code = ""
     
     if test_set:
-        predict_func = "predict_proba" if mds_dict["type"] == "Classifier" else "predict"
+        if mds_dict["type"] == "Classifier":
+            predict_func = "predict_proba"
+            if score_name == "Accuracy":
+                test_score_code = f"test_score = model.score(x_test, y_test)\n"
+            else:
+                test_score_code = f"test_score = roc_auc_score(pd.get_dummies(y_test), proba_test)\n"
+                imports_step3.append("from sklearn.metrics import roc_auc_score")
+        else:
+            predict_func = "predict"
+            if score_name == "R-squared":
+                test_score_code = f"test_score = model.score(x_test, y_test)\n"
+            elif score_name == "Negative RMSE":
+                test_score_code = f"test_score = - root_mean_squared_error(y_test, yhat_test)\n"
+                imports_step3.append("from sklearn.metrics import root_mean_squared_error")
+
         test_pred_code = (
-            #f"\nmodel.fit({x_name}, {y_name})\n"
-            f"\n{pred_name}_test = model.{predict_func}(x_test)"
+            f"\n{pred_name}_test = model.{predict_func}(x_test)\n"
+            f"{test_score_code}"
+            "print(f'Test score: {test_score:.4f}')\n"
         )
     else:
         test_pred_code = ""
-        #decision_test_code = ""
 
     dropna_code = ""
     var_columns = predictors
@@ -2049,10 +2066,10 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
         f"table = pd.DataFrame({{{score_name.__repr__()}: score.round(4)}}, index=index).T\n"
         "print(f'{table}')\n"
         "print(f'Cross-validation score: {score.mean():.4f}')\n"
-        f"train_score = model.fit({x_name}, {y_name}).score({x_name}, {y_name})\n"
-        "print(f'\\nTraining score: {train_score:.4f}')"
-        f"{test_code}\n\n"
-        f"{pred_name}_cv = cross_val_predict(model, {x_name}, {y_name}{pred_method_code}, cv=cv)"
+        f"{pred_name}_cv = cross_val_predict(model, {x_name}, {y_name}{pred_method_code}, cv=cv)\n"
+        #f"train_score = model.fit({x_name}, {y_name}).score({x_name}, {y_name}{scoring_code})\n"
+        #"print(f'\\nTraining score: {train_score:.4f}')"
+        f"{test_code}"
         f"{test_pred_code}"
     )
 
@@ -2306,13 +2323,13 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             else:
                 args = "y_target[x_test.index], proba_test[:, index]>threshold"
             code = (
-                f"cmat_test = pd.DataFrame(confusion_matrix({args}, normalize='true').round(5),\n"
+                f"cmat_test = pd.DataFrame(confusion_matrix({args}{normalize_code}).round(5),\n"
                 f"                         {index_code}\n"
                 f"                         {columns_code})\n"
                 "cmat_test.index.name = 'Actual'\n"
                 "cmat_test.columns.name = 'Predicted'\n"
                 f"fig = plt.figure(figsize=(3.9, 4.2))\n"
-                "sns.heatmap(cmat_test, annot=True, cmap='YlGn', cbar=False, ax=fig.gca())\n"
+                f"sns.heatmap(cmat_test, annot=True{fmt_code}, cmap='YlGn', cbar=False, ax=fig.gca())\n"
                 "plt.title('Test')\n"
                 "plt.show()"
             )
