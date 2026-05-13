@@ -39,6 +39,8 @@ model_hypers = {
           "If unspecified, the tree may grow to unlimited number of leaf nodes."))
     ],
     "RandomForestRegressor": [
+        ("n_estimators", "Number of trees", "100",
+         "The number of trees in the forest."),
         ("max_depth", "Max tree depth", "None", 
          ("The maximum depth of the tree. If None, then nodes are expanded until "
           "all leaves are pure or until all leaves contain less than minimum samples per split.")),
@@ -60,6 +62,8 @@ model_hypers = {
           "If unspecified, all features are considered.")),
     ],
     "GradientBoostingRegressor": [
+        ("n_estimators", "Number of trees", "100",
+         "The number of boosting iterations to perform. Values must be in the range [1, inf)."),
         ("max_depth", "Max tree depth", "None", 
          ("The maximum depth of the tree. If None, then nodes are expanded until "
           "all leaves are pure or until all leaves contain less than minimum samples per split.")),
@@ -85,7 +89,11 @@ model_hypers = {
         ("subsample", "Sub-sample", "1.0", 
          ("The fraction of samples to be used for fitting the individual base learners. "
           "If smaller than 1.0 this results in Stochastic Gradient Boosting. "
-          "It must be in the range (0.0, 1.0]."))
+          "It must be in the range (0.0, 1.0].")),
+        ("n_iter_no_change", "Early stopping", "None",
+         ("If set to a number, it will set aside a subset of the training data as validation "
+          "and terminate training when validation score is not improving in this number of "
+          "iterations. It must be in the range [1, inf). If None, early stopping is not used."))
     ],
     "LogisticRegression": [("C", "Inverse regularization C", "1.0", 
                             ("Inverse of regularization strength (1/alpha). "
@@ -112,6 +120,8 @@ model_hypers = {
           "If unspecified, the tree may grow to unlimited number of leaf nodes."))
     ],
     "RandomForestClassifier": [
+        ("n_estimators", "Number of trees", "100",
+         "The number of trees in the forest."),
         ("max_depth", "Max tree depth", "None", 
          ("The maximum depth of the tree. If None, then nodes are expanded until "
           "all leaves are pure or until all leaves contain less than minimum samples per split.")),
@@ -133,6 +143,8 @@ model_hypers = {
           "If unspecified, it is specified as the square root of the total number of features.")),
     ],
     "GradientBoostingClassifier": [
+        ("n_estimators", "Number of trees", "100",
+         "The number of boosting stages to perform. Values must be in the range [1, inf)."),
         ("max_depth", "Max tree depth", "None", 
          ("The maximum depth of the tree. If None, then nodes are expanded until "
           "all leaves are pure or until all leaves contain less than minimum samples per split.")),
@@ -158,7 +170,11 @@ model_hypers = {
         ("subsample", "Sub-sample", "1.0", 
          ("The fraction of samples to be used for fitting the individual base learners. "
           "If smaller than 1.0 this results in Stochastic Gradient Boosting. "
-          "It must be in the range (0.0, 1.0]."))
+          "It must be in the range (0.0, 1.0].")),
+        ("n_iter_no_change", "Early stopping", "None",
+         ("If set to a number, it will set aside a subset of the training data as validation "
+          "and terminate training when validation score is not improving in this number of "
+          "iterations. It must be in the range [1, inf). If None, early stopping is not used."))
     ],
 }
 
@@ -2260,14 +2276,24 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
             index_code = f"index=['not {target_class}', 'is {target_class}'],"
             columns_code = f"columns=['not {target_class}', 'is {target_class}']"
 
+        cm_normalize = ui_input.sklearn_confusion_matrix_type_selectize()
+        if cm_normalize == "None":
+            fmt_code = ", fmt='d'"
+            normalize_code = ""
+        else: 
+            fmt_code = ", fmt='.4f'"
+            if cm_normalize == "Predicted":
+                normalize_code = ", normalize='pred'"
+            else:
+                normalize_code = ", normalize='true'"
         code = (
-            f"cmat_cv = pd.DataFrame(confusion_matrix({args}, normalize='true').round(5),\n"
+            f"cmat_cv = pd.DataFrame(confusion_matrix({args}{normalize_code}).round(5),\n"
             f"                       {index_code}\n"
             f"                       {columns_code})\n"
             "cmat_cv.index.name = 'Actual'\n"
             "cmat_cv.columns.name = 'Predicted'\n"
             f"fig = plt.figure(figsize=(3.9, 4.2))\n"
-            "sns.heatmap(cmat_cv, annot=True, cmap='YlGn', cbar=False, ax=fig.gca())\n"
+            f"sns.heatmap(cmat_cv, annot=True{fmt_code}, cmap='YlGn', cbar=False, ax=fig.gca())\n"
             "plt.title('Cross-validation')\n"
             "plt.show()"
         )

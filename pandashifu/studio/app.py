@@ -2642,12 +2642,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                     ui.input_numeric("sklearn_cv_folds_numeric", "",
                                                      min=2, max=100, step=1, value=5)
                             
-                                #ui.input_switch("sklearn_test_set_switch", "Test ratio")
-                                #test_method_choices = ["None", "Train-test split", "Boolean selection"]
-                                #predicted = input.model_dependent_selectize()
-                                #print('here')
-                                #if data[to_selected_columns(predicted, data)].isnull().any():
-                                #    test_method_choices.append("Missing responses for test")
                                 ui.input_selectize("sklearn_test_method_selectize", "Test set",
                                                    choices=[])
                                 
@@ -2679,7 +2673,6 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                      label_busy="Running...", width="100%")
 
                             with ui.nav_panel("model_page4"):
-                                #ui.markdown("**Step 4: save results**")
                                 with ui.card_header(style="padding-bottom:15px;border:none"):
                                     ui.span(ui.HTML("<b>Step 4: output results</b>"),
                                             style="font-size:12pt")
@@ -2709,6 +2702,15 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                                                                choices=[""] + class_choices, selected="",
                                                                remove_button=True,
                                                                options={"placeholder": "None"})
+                                        
+                                        @render.express
+                                        def sklearn_confusion_matrix_normalize_ui():
+                                            if "Confusion matrix" in input.sklearn_outputs_checkbox():
+                                                with ui.layout_columns(col_widths=(4, 8), gap="5px"):
+                                                    inline_label("Normalize")
+                                                    ui.input_selectize("sklearn_confusion_matrix_type_selectize",
+                                                                       "", choices=["Actual", "Predicted", "None"],
+                                                                       options={"placeholder": "Actual"})
 
                                         @render.express
                                         def sklearn_class_threshold_ui():
@@ -2876,6 +2878,9 @@ with ui.layout_column_wrap(width="1060px", fixed_width=True):
                             disabled = len(md_memory.get()) == 0
                             if not disabled:
                                 disabled = not isinstance(md_memory.get()["result"], str)
+                            mds_dict = mds.get()
+                            if mds_dict["type"] == "Classifier":
+                                ui.update_selectize("sklearn_class_selectize", selected="")
                         else:
                             disabled = True
                         ui.update_action_button("sklearn_page_next_button", disabled=disabled)

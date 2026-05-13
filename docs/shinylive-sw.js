@@ -1,4 +1,4 @@
-// Shinylive 0.10.8
+// Shinylive 0.10.9
 // Copyright 2026 Posit, PBC
 var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
   get: (a, b2) => (typeof require !== "undefined" ? require : a)[b2]
