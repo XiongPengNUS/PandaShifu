@@ -1930,7 +1930,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
                        "R-squared": "",
                        "Negative RMSE": ", scoring='neg_root_mean_squared_error'",
                        "Accuracy": "",
-                       "AUC": ", scoring='roc_auc'",
+                       "AUC": ", scoring='roc_auc_ovr'",
                        "F1": ", scoring='f1'"}
     score_name = "" if page <3 else ui_input.sklearn_score_metric_selectize()
     if score_name == "":
@@ -2016,7 +2016,10 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
             if score_name == "Accuracy":
                 test_score_code = f"test_score = model.score(x_test, y_test)\n"
             else:
-                test_score_code = f"test_score = roc_auc_score(pd.get_dummies(y_test), proba_test)\n"
+                test_score_code = (
+                    f"test_score = roc_auc_score(pd.get_dummies(y_test), "
+                    "proba_test, multi_class='ovr')\n"
+                )
                 imports_step3.append("from sklearn.metrics import roc_auc_score")
         else:
             predict_func = "predict"
