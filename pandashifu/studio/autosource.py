@@ -1996,7 +1996,7 @@ def sklearn_model_source(mds_dict, name, data, ui_input, page):
     else:
         cv_code = (
             f"score = cross_val_score(pipe, {x_name}, {y_name}{scoring_code}, cv=cv)\n\n"
-            "model = pipe\n"
+            f"model = pipe.fit({x_name}, {y_name})\n"
         )
         imports_step3.append("from sklearn.model_selection import cross_val_score")
     
@@ -2402,6 +2402,9 @@ def sklearn_plots_source(mds_dict, name, data, ui_input, page):
         
         trained_model = mds_dict["memory"]["model"]
         if 'dummy' in trained_model.named_steps:
+            #dummy_step = trained_model.named_steps['dummy']
+            #dummy_step.fit(mds_dict["memory"]["x"])
+            #feature_names = dummy_step.get_feature_names_out().tolist()
             feature_names = trained_model.named_steps['dummy'].get_feature_names_out().tolist()
         else:
             feature_names = mds_dict["memory"]["x"].columns.tolist()
