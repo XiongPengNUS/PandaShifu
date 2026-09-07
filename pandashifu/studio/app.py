@@ -158,10 +158,28 @@ def display_table(df, min_rows=10):
 
     return pd.concat([df_head, ellipsis_row, df_tail])
 
+def float_tuple_to_color(color_tuple, alpha=False):
+
+  if isinstance(color_tuple, str):
+    return color_tuple
+  # Scale from 0.0-1.0 to 0-255
+  scaled = [int(round(val * 255)) for val in color_tuple]
+
+  if len(scaled) == 4 or alpha:
+    # Handle alpha/opacity if present (keep alpha as float 0.0-1.0 if desired)
+    return (
+        f"rgba({scaled[0]}, {scaled[1]}, {scaled[2]},"
+        f" {color_tuple[3] if len(color_tuple) > 3 else 1.0})"
+    )
+  else:
+    return f"rgb({scaled[0]}, {scaled[1]}, {scaled[2]})"
+
 
 # Global variables and constants
 # Default colors for data visuals like bar charts and line plots
-default_colors = [c['color'] for c in mpl.rcParams['axes.prop_cycle']]
+#default_colors = [c['color'] for c in mpl.rcParams['axes.prop_cycle']]
+default_colors = [float_tuple_to_color(c['color'])
+                  for c in mpl.rcParams['axes.prop_cycle']]
 
 # Color maps for representing numerical data
 num_cmaps = ['viridis', 'plasma', 'inferno', 'magma', 'cividis',
